@@ -1,4 +1,4 @@
-﻿import json
+import json
 import urllib.parse
 from io import BytesIO
 from typing import Dict, List, Optional
@@ -14,15 +14,18 @@ from catalog import (
 
 
 def build_vless_uri(node: Dict) -> str:
-    """Reconstruct standard VLESS Reality link."""
-    uuid = node["uuid"]
-    server = node["server"]
-    port = node["port"]
+    """Return raw URI or reconstruct standard VLESS Reality link."""
+    if node.get("raw_uri"):
+        return node["raw_uri"]
+
+    uuid = node.get("uuid", "")
+    server = node.get("server", "")
+    port = node.get("port", 443)
     name = urllib.parse.quote(node.get("name", "Smart Mobile VPN"))
 
     params = {
-        "type": "tcp",
-        "security": "reality",
+        "type": node.get("network", "tcp"),
+        "security": node.get("security", "reality"),
         "pbk": node.get("public_key", ""),
         "fp": node.get("client_fingerprint", "chrome"),
         "sni": node.get("servername", "gateway.icloud.com"),
@@ -32,6 +35,68 @@ def build_vless_uri(node: Dict) -> str:
     }
     query = urllib.parse.urlencode(params)
     return f"vless://{uuid}@{server}:{port}?{query}#{name}"
+
+
+def _build_singbox_outbound(node: Dict) -> Dict:
+    """Construct Sing-box outbound dictionary for vless or hysteria2."""
+    p_type = node.get("type", "vless")
+    if p_type in ("hysteria2", "hy2"):
+        return {
+            "type": "hysteria2",
+            "tag": "proxy",
+            "server": node.get("server", ""),
+            "server_port": int(node.get("port", 443)),
+            "password": node.get("password", ""),
+            "tls": {
+                "enabled": True,
+                "server_name": node.get("sni", "")
+            }
+        }
+
+    # Default VLESS
+    outbound = {
+        "type": "vless",
+        "tag": "proxy",
+        "server": node.get("server", ""),
+        "server_port": int(node.get("port", 443)),
+        "uuid": node.get("uuid", ""),
+        "network": node.get("network", "tcp")
+    }
+    if node.get("flow"):
+        outbound["flow"] = node["flow"]
+
+    sec = node.get("security", "reality")
+    tls_dict = {
+        "enabled": True,
+        "server_name": node.get("servername", "gateway.icloud.com"),
+        "utls": {
+            "enabled": True,
+            "fingerprint": node.get("client_fingerprint", "chrome")
+        }
+    }
+    if sec == "reality" or node.get("public_key") or "reality-opts" in node:
+        tls_dict["reality"] = {
+            "enabled": True,
+            "public_key": node.get("public_key") or (node.get("reality-opts", {}) or {}).get("public-key", ""),
+            "short_id": node.get("short_id") or (node.get("reality-opts", {}) or {}).get("short-id", "")
+        }
+    outbound["tls"] = tls_dict
+
+    if node.get("network") == "grpc":
+        svc = (node.get("grpc-opts", {}) or {}).get("grpc-service-name", "")
+        if svc:
+            outbound["transport"] = {
+                "type": "grpc",
+                "service_name": svc
+            }
+    elif node.get("network") == "ws":
+        path = (node.get("ws-opts", {}) or {}).get("path", "/")
+        outbound["transport"] = {
+            "type": "ws",
+            "path": path
+        }
+
+    return outbound
 
 
 def generate_singbox_json(node: Dict,
@@ -106,28 +171,7 @@ def generate_singbox_json(node: Dict,
             }
         ],
         "outbounds": [
-            {
-                "type": "vless",
-                "tag": "proxy",
-                "server": node["server"],
-                "server_port": int(node["port"]),
-                "uuid": node["uuid"],
-                "flow": node.get("flow", "xtls-rprx-vision"),
-                "network": "tcp",
-                "tls": {
-                    "enabled": True,
-                    "server_name": node.get("servername", "gateway.icloud.com"),
-                    "utls": {
-                        "enabled": True,
-                        "fingerprint": node.get("client_fingerprint", "chrome")
-                    },
-                    "reality": {
-                        "enabled": True,
-                        "public_key": node.get("public_key", ""),
-                        "short_id": node.get("short_id", "")
-                    }
-                }
-            },
+            _build_singbox_outbound(node),
             {
                 "type": "direct",
                 "tag": "direct"

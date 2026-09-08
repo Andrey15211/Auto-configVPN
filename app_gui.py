@@ -16,12 +16,15 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTabWidget, QTableWidget,
     QTableWidgetItem, QHeaderView, QCheckBox, QGroupBox, QMessageBox,
-    QFileDialog, QScrollArea, QFrame, QTextEdit, QSplitter
+    QFileDialog, QScrollArea, QFrame, QTextEdit, QSplitter, QComboBox
 )
 
 from scanner import scan_all_games
 from catalog import RU_DIRECT_CATEGORIES
-from pc_generator import parse_vless_link, generate_clash_yaml, deploy_to_clash_verge, get_clash_verge_paths
+from pc_generator import (
+    parse_any_source, parse_vless_link, generate_clash_yaml,
+    deploy_to_clash_verge, get_clash_verge_paths
+)
 from mobile_generator import build_vless_uri, generate_singbox_json, generate_qr_image
 
 # Dark Theme Stylesheet
@@ -184,10 +187,33 @@ QScrollBar::handle:vertical:hover {
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0;
 }
+
+QComboBox {
+    background-color: #1a2130;
+    border: 1px solid #2c364d;
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #f8fafc;
+    font-size: 13px;
+}
+QComboBox:hover {
+    border-color: #3b82f6;
+}
+QComboBox::drop-down {
+    border: none;
+    width: 24px;
+}
+QComboBox QAbstractItemView {
+    background-color: #161c28;
+    border: 1px solid #2c364d;
+    selection-background-color: #2563eb;
+    color: #f8fafc;
+    padding: 4px;
+}
 """
 
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 
@@ -259,6 +285,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(880, 650)
         self.setStyleSheet(MODERN_DARK_QSS)
 
+        self.current_nodes: List[Dict] = []
         self.current_node: Dict = {}
         self.detected_games: List[Dict[str, str]] = []
         self.category_checkboxes: Dict[str, QCheckBox] = {}
@@ -348,13 +375,13 @@ class MainWindow(QMainWindow):
         main_layout.addLayout(header_layout)
 
         # 2. Server Input Box
-        node_group = QGroupBox("1. Конфигурация вашего сервера (VLESS Reality / Shadowsocks)")
+        node_group = QGroupBox("1. Конфигурация вашего сервера (VLESS Reality / Shadowsocks / Подписка)")
         node_layout = QVBoxLayout(node_group)
         node_layout.setSpacing(8)
 
         input_row = QHBoxLayout()
         self.link_input = QLineEdit()
-        self.link_input.setPlaceholderText("Вставьте vless:// ссылку с вашего VPS или сервера...")
+        self.link_input.setPlaceholderText("Вставьте vless://, hysteria2:// ссылку или URL подписки (https://)...")
         # Pre-fill with user's active working link
         default_link = "vless://a9f3ec7e-f680-4067-94a1-96b515e642c3@176.124.207.182:443?type=tcp&security=reality&pbk=VhgG8Gv5D66I_nsTlvRyEAu3oIc7TPpyw9vuWHBEuj4&fp=chrome&sni=gateway.icloud.com&sid=a9a2084614af6db0&spx=%2F&flow=xtls-rprx-vision#Aeza%20Sweden%20(Reality)"
         self.link_input.setText(default_link)
@@ -369,6 +396,11 @@ class MainWindow(QMainWindow):
         input_row.addWidget(btn_paste)
         input_row.addWidget(btn_clear)
         node_layout.addLayout(input_row)
+
+        self.server_combo = QComboBox()
+        self.server_combo.currentIndexChanged.connect(self._on_server_selected)
+        self.server_combo.setVisible(False)
+        node_layout.addWidget(self.server_combo)
 
         self.node_info_label = QLabel("Узел распознан:")
         self.node_info_label.setStyleSheet("color: #10b981; font-weight: 500;")
@@ -583,16 +615,66 @@ class MainWindow(QMainWindow):
             self.link_input.setText(text)
 
     def _on_link_changed(self, text: str):
+        text = text.strip()
+        if not text:
+            self.node_info_label.setText("Ожидание ссылки...")
+            self.node_info_label.setStyleSheet("color: #64748b; font-weight: 500;")
+            self.server_combo.setVisible(False)
+            self.current_nodes = []
+            self.current_node = {}
+            return
+
         try:
-            self.current_node = parse_vless_link(text)
-            self.node_info_label.setText(
-                f"✅ Узел: {self.current_node['name']} | Сервер: {self.current_node['server']}:{self.current_node['port']} | SNI: {self.current_node['servername']}"
-            )
+            nodes = parse_any_source(text)
+            self.current_nodes = nodes
+            if not nodes:
+                raise ValueError("Серверы не найдены в ссылке")
+
+            self.server_combo.blockSignals(True)
+            self.server_combo.clear()
+
+            if len(nodes) > 1:
+                self.server_combo.addItem(f"🌐 Все серверы подписки ({len(nodes)} шт.) — выбор в Clash Verge")
+                for i, n in enumerate(nodes, 1):
+                    self.server_combo.addItem(f"{i}. {n.get('name', 'Proxy')} ({n.get('server')}:{n.get('port')})")
+                self.server_combo.setVisible(True)
+                self.current_node = nodes[0]
+                self.node_info_label.setText(
+                    f"✅ Подписка загружена: {len(nodes)} серверов | Все узлы будут добавлены в Clash Verge с раздельным туннелированием"
+                )
+            else:
+                self.server_combo.setVisible(False)
+                self.current_node = nodes[0]
+                self.node_info_label.setText(
+                    f"✅ Узел: {self.current_node.get('name')} | Сервер: {self.current_node.get('server')}:{self.current_node.get('port')} | Протокол: {self.current_node.get('type')}"
+                )
+
+            self.server_combo.blockSignals(False)
             self.node_info_label.setStyleSheet("color: #10b981; font-weight: 500;")
             self._update_qr()
+            if self.yaml_preview.isVisible():
+                self._update_yaml_preview()
         except Exception as e:
             self.node_info_label.setText(f"⚠️ Ошибка формата ссылки: {e}")
             self.node_info_label.setStyleSheet("color: #f59e0b; font-weight: 500;")
+            self.server_combo.setVisible(False)
+
+    def _on_server_selected(self, idx: int):
+        if not self.current_nodes:
+            return
+        if idx == 0 and len(self.current_nodes) > 1:
+            self.current_node = self.current_nodes[0]
+            self.node_info_label.setText(
+                f"✅ Выбраны все {len(self.current_nodes)} серверов для ПК | Для мобильного QR выбран: {self.current_node.get('name')}"
+            )
+        elif idx > 0 and (idx - 1) < len(self.current_nodes):
+            self.current_node = self.current_nodes[idx - 1]
+            self.node_info_label.setText(
+                f"✅ Выбран сервер #{idx}: {self.current_node.get('name')} ({self.current_node.get('server')}:{self.current_node.get('port')})"
+            )
+        self._update_qr()
+        if self.yaml_preview.isVisible():
+            self._update_yaml_preview()
 
     def _update_qr(self):
         if not self.current_node or not self.current_node.get("server"):
@@ -702,20 +784,28 @@ class MainWindow(QMainWindow):
     def _get_enabled_categories(self) -> List[str]:
         return [cat for cat, cb in self.category_checkboxes.items() if cb.isChecked()]
 
+    def _get_nodes_for_pc(self) -> List[Dict]:
+        if not self.current_nodes:
+            return [self.current_node] if self.current_node else []
+        if self.server_combo.isVisible() and self.server_combo.currentIndex() == 0 and len(self.current_nodes) > 1:
+            return self.current_nodes
+        return [self.current_node] if self.current_node else self.current_nodes[:1]
+
     def _deploy_clash(self):
-        if not self.current_node or not self.current_node.get("server"):
-            QMessageBox.warning(self, "Внимание", "Пожалуйста, введите корректную vless:// ссылку.")
+        nodes = self._get_nodes_for_pc()
+        if not nodes:
+            QMessageBox.warning(self, "Внимание", "Пожалуйста, введите корректную vless:// ссылку или URL подписки.")
             return
 
         try:
             exes = self._get_selected_game_exes()
             cats = self._get_enabled_categories()
-            yaml_content = generate_clash_yaml(self.current_node, exes, cats)
+            yaml_content = generate_clash_yaml(nodes, exes, cats)
             result = deploy_to_clash_verge(yaml_content, profile_name="Smart Split-Tunneling")
 
             if result["status"] == "success":
-                msg = f"Профиль успешно применён!\nПуть: {result['path']}\nПерезагрузка ядра: {result['reloaded']}"
-                self.pc_status_label.setText(f"✅ Успешно применен в Clash Verge ({len(exes)} игр в DIRECT)")
+                msg = f"Профиль успешно применён!\nСерверов в пуле: {len(nodes)}\nИгр в DIRECT: {len(exes)}\nПуть: {result['path']}\nПерезагрузка ядра: {result['reloaded']}"
+                self.pc_status_label.setText(f"✅ Успешно применен в Clash Verge ({len(nodes)} серв., {len(exes)} игр в DIRECT)")
                 self.pc_status_label.setStyleSheet("color: #10b981; font-weight: bold;")
                 QMessageBox.information(self, "Успех", msg)
             else:
@@ -726,33 +816,41 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Исключение", str(e))
 
     def _save_yaml_file(self):
-        if not self.current_node:
+        nodes = self._get_nodes_for_pc()
+        if not nodes:
             return
         path, _ = QFileDialog.getSaveFileName(self, "Сохранить профиль Clash", "smart_split_tunnel.yaml", "YAML Files (*.yaml *.yml)")
         if path:
             exes = self._get_selected_game_exes()
             cats = self._get_enabled_categories()
-            content = generate_clash_yaml(self.current_node, exes, cats)
+            content = generate_clash_yaml(nodes, exes, cats)
             Path(path).write_text(content, encoding="utf-8")
-            QMessageBox.information(self, "Успех", f"Файл сохранён:\n{path}")
+            QMessageBox.information(self, "Успех", f"Файл сохранён ({len(nodes)} серверов):\n{path}")
 
     def _copy_yaml(self):
-        if not self.current_node:
+        nodes = self._get_nodes_for_pc()
+        if not nodes:
             return
         exes = self._get_selected_game_exes()
         cats = self._get_enabled_categories()
-        content = generate_clash_yaml(self.current_node, exes, cats)
+        content = generate_clash_yaml(nodes, exes, cats)
         QApplication.clipboard().setText(content)
-        QMessageBox.information(self, "Скопировано", "YAML-профиль скопирован в буфер обмена!")
+        QMessageBox.information(self, "Скопировано", f"YAML-профиль ({len(nodes)} серверов) скопирован в буфер обмена!")
+
+    def _update_yaml_preview(self):
+        nodes = self._get_nodes_for_pc()
+        if not nodes:
+            return
+        exes = self._get_selected_game_exes()
+        cats = self._get_enabled_categories()
+        content = generate_clash_yaml(nodes, exes, cats)
+        self.yaml_preview.setText(content)
 
     def _toggle_yaml_preview(self):
         vis = not self.yaml_preview.isVisible()
         self.yaml_preview.setVisible(vis)
-        if vis and self.current_node:
-            exes = self._get_selected_game_exes()
-            cats = self._get_enabled_categories()
-            content = generate_clash_yaml(self.current_node, exes, cats)
-            self.yaml_preview.setText(content)
+        if vis:
+            self._update_yaml_preview()
 
     def _copy_mobile_link(self):
         if not self.current_node:

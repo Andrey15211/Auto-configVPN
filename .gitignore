@@ -27,5 +27,9 @@ Thumbs.db
 *~
 .vscode/
 
-# Logs
+# Logs & Backups
 *.log
+backups/
+*.yaml
+!*.github/**/*.yaml
+!*.github/**/*.yml

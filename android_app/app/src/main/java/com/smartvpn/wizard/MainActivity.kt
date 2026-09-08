@@ -19,7 +19,9 @@ import com.smartvpn.wizard.generator.SingBoxConfigGenerator
 import com.smartvpn.wizard.scanner.AppScanner
 import com.smartvpn.wizard.ui.AppAdapter
 import com.smartvpn.wizard.updater.GitHubUpdateChecker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
@@ -95,11 +97,11 @@ class MainActivity : AppCompatActivity() {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val item = clipboard.primaryClip?.getItemAt(0)
             val text = item?.text?.toString()?.trim() ?: ""
-            if (text.startsWith("vless://")) {
+            if (text.startsWith("vless://") || text.startsWith("http://") || text.startsWith("https://")) {
                 binding.etVlessLink.setText(text)
-                Toast.makeText(this, "Ссылка VLESS вставлена", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Ссылка вставлена", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this, "В буфере нет ссылки vless://", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "В буфере нет подходящей ссылки (vless:// или https://)", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -145,34 +147,38 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun generateSingBoxConfig() {
-        val vlessLink = binding.etVlessLink.text?.toString()?.trim() ?: ""
-        if (vlessLink.isEmpty()) {
-            Toast.makeText(this, "Пожалуйста, укажите vless:// ссылку на сервер", Toast.LENGTH_LONG).show()
+        val link = binding.etVlessLink.text?.toString()?.trim() ?: ""
+        if (link.isEmpty()) {
+            Toast.makeText(this, "Пожалуйста, укажите ссылку на сервер или подписку", Toast.LENGTH_LONG).show()
             return
         }
 
-        try {
-            val node = configGenerator.parseVlessUri(vlessLink)
-            val selectedPackages = appAdapter.getSelectedPackages()
-            lastGeneratedJson = configGenerator.generateConfigJson(node, selectedPackages)
-
-            MaterialAlertDialogBuilder(this)
-                .setTitle("Конфигурация готова!")
-                .setMessage("Сгенерирован профиль Sing-box с ${selectedPackages.size} приложениями в прямом обходе (Direct).\n\nВы можете скопировать или поделиться им для импорта в клиент Sing-box, NekoBox или v2rayNG.")
-                .setPositiveButton("Скопировать") { _, _ ->
-                    val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("Sing-box Config", lastGeneratedJson))
-                    Toast.makeText(this, "Конфиг скопирован!", Toast.LENGTH_SHORT).show()
+        lifecycleScope.launch {
+            try {
+                val node = withContext(Dispatchers.IO) {
+                    configGenerator.parseLinkOrSubscription(link)
                 }
-                .setNegativeButton("Закрыть", null)
-                .show()
+                val selectedPackages = appAdapter.getSelectedPackages()
+                lastGeneratedJson = configGenerator.generateConfigJson(node, selectedPackages)
 
-        } catch (e: Exception) {
-            MaterialAlertDialogBuilder(this)
-                .setTitle("Ошибка формирования")
-                .setMessage(e.localizedMessage ?: "Неверный формат ссылки")
-                .setPositiveButton("OK", null)
-                .show()
+                MaterialAlertDialogBuilder(this@MainActivity)
+                    .setTitle("Конфигурация готова!")
+                    .setMessage("Сгенерирован профиль Sing-box для узла «${node.name}» с ${selectedPackages.size} приложениями в прямом обходе (Direct).\n\nВы можете скопировать или поделиться им для импорта в Hiddify, Sing-box или v2rayNG.")
+                    .setPositiveButton("Скопировать") { _, _ ->
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Sing-box Config", lastGeneratedJson))
+                        Toast.makeText(this@MainActivity, "Конфиг скопирован!", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("Закрыть", null)
+                    .show()
+
+            } catch (e: Exception) {
+                MaterialAlertDialogBuilder(this@MainActivity)
+                    .setTitle("Ошибка формирования")
+                    .setMessage(e.localizedMessage ?: "Неверный формат ссылки")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
         }
     }
 }

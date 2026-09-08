@@ -18,10 +18,36 @@ data class VlessNode(
 
 class SingBoxConfigGenerator {
 
+    fun parseLinkOrSubscription(link: String): VlessNode {
+        val trimmed = link.trim()
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            val url = java.net.URL(trimmed)
+            val conn = url.openConnection() as java.net.HttpURLConnection
+            conn.setRequestProperty("User-Agent", "v2rayNG/1.8.5")
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
+            val raw = conn.inputStream.bufferedReader().use { it.readText().trim() }
+            val decoded = try {
+                val clean = raw.replace("\r", "").replace("\n", "").trim()
+                String(android.util.Base64.decode(clean, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            } catch (e: Exception) {
+                raw
+            }
+            val lines = decoded.lines().map { it.trim() }.filter { it.isNotBlank() }
+            for (line in lines) {
+                if (line.startsWith("vless://")) {
+                    return parseVlessUri(line)
+                }
+            }
+            throw IllegalArgumentException("В подписке не найдено подходящих узлов VLESS")
+        }
+        return parseVlessUri(trimmed)
+    }
+
     fun parseVlessUri(link: String): VlessNode {
         val trimmed = link.trim()
         if (!trimmed.startsWith("vless://")) {
-            throw IllegalArgumentException("Ссылка должна начинаться с vless://")
+            throw IllegalArgumentException("Ссылка должна начинаться с vless:// или https://")
         }
 
         // Format: vless://uuid@host:port?params#name
