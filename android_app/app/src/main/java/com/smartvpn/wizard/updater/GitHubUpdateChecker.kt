@@ -17,6 +17,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.gson.Gson
 import com.smartvpn.wizard.R
 import com.smartvpn.wizard.model.GitHubRelease
+import com.smartvpn.wizard.model.GitHubAsset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
