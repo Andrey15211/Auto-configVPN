@@ -1,0 +1,31 @@
+# Python / PyInstaller
+__pycache__/
+*.py[cod]
+*$py.class
+*.spec
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+.idea/
+*.iml
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS / Editors
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+
+# Logs
+*.log

@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Smart Split-Tunneling</string>
+    <string name="title_server_config">1. Конфигурация сервера</string>
+    <string name="hint_vless">Вставьте vless:// ссылку</string>
+    <string name="title_direct_apps">2. Приложения в обход VPN (Direct)</string>
+    <string name="subtitle_direct_apps">Выбранные приложения будут идти напрямую без задержек и капч (банки, маркетплейсы, госуслуги)</string>
+    <string name="title_actions">3. Создание профиля</string>
+    <string name="btn_generate_singbox">Сгенерировать Sing-box JSON</string>
+    <string name="btn_copy_clipboard">Скопировать в буфер</string>
+    <string name="btn_share_config">Поделиться конфигом</string>
+    <string name="btn_check_update">Проверить обновления</string>
+    <string name="update_available">Доступно обновление</string>
+    <string name="update_latest">У вас установлена последняя версия</string>
+    <string name="btn_download_install">Скачать и установить</string>
+    <string name="btn_cancel">Отмена</string>
+    <string name="downloading_update">Загрузка обновления…</string>
+    <string name="search_apps">Поиск приложений…</string>
+</resources>

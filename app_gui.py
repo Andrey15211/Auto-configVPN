@@ -1,0 +1,655 @@
+﻿import sys
+import os
+import re
+from io import BytesIO
+from pathlib import Path
+from typing import List, Dict
+
+from PySide6.QtCore import Qt, QThread, Signal, QSize
+from PySide6.QtGui import QIcon, QPixmap, QImage, QFont, QColor
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QLineEdit, QPushButton, QTabWidget, QTableWidget,
+    QTableWidgetItem, QHeaderView, QCheckBox, QGroupBox, QMessageBox,
+    QFileDialog, QScrollArea, QFrame, QTextEdit, QSplitter
+)
+
+from scanner import scan_all_games
+from catalog import RU_DIRECT_CATEGORIES
+from pc_generator import parse_vless_link, generate_clash_yaml, deploy_to_clash_verge, get_clash_verge_paths
+from mobile_generator import build_vless_uri, generate_singbox_json, generate_qr_image
+
+# Dark Theme Stylesheet
+MODERN_DARK_QSS = """
+QMainWindow, QWidget {
+    background-color: #0f131a;
+    color: #e2e8f0;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 13px;
+}
+
+QGroupBox {
+    border: 1px solid #232a3b;
+    border-radius: 8px;
+    margin-top: 14px;
+    padding: 12px;
+    font-weight: bold;
+    color: #94a3b8;
+    background-color: #151a24;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    left: 12px;
+    padding: 0 4px;
+}
+
+QLineEdit {
+    background-color: #1a2130;
+    border: 1px solid #2c364d;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #f8fafc;
+    selection-background-color: #3b82f6;
+}
+QLineEdit:focus {
+    border: 1px solid #3b82f6;
+    background-color: #1e2638;
+}
+
+QPushButton {
+    background-color: #232c40;
+    border: 1px solid #33405c;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-weight: 600;
+    color: #f1f5f9;
+}
+QPushButton:hover {
+    background-color: #2e3b55;
+    border-color: #475569;
+}
+QPushButton:pressed {
+    background-color: #1e2638;
+}
+
+QPushButton#btnPrimary {
+    background-color: #2563eb;
+    border: 1px solid #3b82f6;
+    color: #ffffff;
+    font-size: 14px;
+    padding: 10px 20px;
+}
+QPushButton#btnPrimary:hover {
+    background-color: #1d4ed8;
+    border-color: #60a5fa;
+}
+
+QPushButton#btnSuccess {
+    background-color: #059669;
+    border: 1px solid #10b981;
+    color: #ffffff;
+    font-size: 14px;
+    padding: 10px 20px;
+}
+QPushButton#btnSuccess:hover {
+    background-color: #047857;
+}
+
+QTabWidget::pane {
+    border: 1px solid #232a3b;
+    border-radius: 8px;
+    background-color: #131822;
+    padding: 12px;
+}
+QTabBar::tab {
+    background-color: #161c28;
+    color: #94a3b8;
+    border: 1px solid #232a3b;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+    padding: 10px 20px;
+    margin-right: 4px;
+    font-weight: bold;
+}
+QTabBar::tab:selected {
+    background-color: #1e2638;
+    color: #60a5fa;
+    border-color: #3b82f6;
+}
+QTabBar::tab:hover:!selected {
+    background-color: #1a2233;
+    color: #cbd5e1;
+}
+
+QTableWidget {
+    background-color: #131822;
+    alternate-background-color: #181f2c;
+    border: 1px solid #232a3b;
+    border-radius: 6px;
+    gridline-color: #232a3b;
+    color: #f1f5f9;
+}
+QTableWidget::item {
+    padding: 6px;
+}
+QTableWidget::item:selected {
+    background-color: #2563eb;
+    color: #ffffff;
+}
+QHeaderView::section {
+    background-color: #1c2333;
+    color: #94a3b8;
+    font-weight: bold;
+    padding: 8px;
+    border: none;
+    border-bottom: 1px solid #2d3748;
+}
+
+QCheckBox {
+    spacing: 8px;
+    color: #e2e8f0;
+}
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    border: 1px solid #475569;
+    background-color: #1a2233;
+}
+QCheckBox::indicator:checked {
+    background-color: #2563eb;
+    border-color: #3b82f6;
+}
+
+QScrollBar:vertical {
+    background: #0f131a;
+    width: 10px;
+    margin: 0;
+}
+QScrollBar::handle:vertical {
+    background: #2d3748;
+    min-height: 20px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #4a5568;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+}
+"""
+
+
+class ScannerThread(QThread):
+    finished = Signal(list)
+
+    def run(self):
+        games = scan_all_games()
+        self.finished.emit(games)
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Smart Split-Tunneling Wizard (ПК & Телефон)")
+        self.resize(1020, 780)
+        self.setMinimumSize(880, 650)
+        self.setStyleSheet(MODERN_DARK_QSS)
+
+        self.current_node: Dict = {}
+        self.detected_games: List[Dict[str, str]] = []
+        self.category_checkboxes: Dict[str, QCheckBox] = {}
+
+        self._build_ui()
+        self._start_scan()
+
+    def _build_ui(self):
+        main_widget = QWidget()
+        self.setCentralWidget(main_widget)
+        main_layout = QVBoxLayout(main_widget)
+        main_layout.setContentsMargins(16, 16, 16, 16)
+        main_layout.setSpacing(12)
+
+        # 1. Header
+        header_layout = QHBoxLayout()
+        title_label = QLabel("⚡ Smart Split-Tunneling Wizard")
+        title_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #60a5fa;")
+        subtitle = QLabel("Автоматическое раздельное туннелирование для игр и сервисов РФ")
+        subtitle.setStyleSheet("color: #64748b; font-size: 13px;")
+
+        header_layout.addWidget(title_label)
+        header_layout.addSpacing(10)
+        header_layout.addWidget(subtitle)
+        header_layout.addStretch()
+        main_layout.addLayout(header_layout)
+
+        # 2. Server Input Box
+        node_group = QGroupBox("1. Конфигурация вашего сервера (VLESS Reality / Shadowsocks)")
+        node_layout = QVBoxLayout(node_group)
+        node_layout.setSpacing(8)
+
+        input_row = QHBoxLayout()
+        self.link_input = QLineEdit()
+        self.link_input.setPlaceholderText("Вставьте vless:// ссылку с вашего VPS или сервера...")
+        # Pre-fill with user's active working link
+        default_link = "vless://a9f3ec7e-f680-4067-94a1-96b515e642c3@176.124.207.182:443?type=tcp&security=reality&pbk=VhgG8Gv5D66I_nsTlvRyEAu3oIc7TPpyw9vuWHBEuj4&fp=chrome&sni=gateway.icloud.com&sid=a9a2084614af6db0&spx=%2F&flow=xtls-rprx-vision#Aeza%20Sweden%20(Reality)"
+        self.link_input.setText(default_link)
+        self.link_input.textChanged.connect(self._on_link_changed)
+
+        btn_paste = QPushButton("📋 Вставить")
+        btn_paste.clicked.connect(self._paste_clipboard)
+        btn_clear = QPushButton("✕")
+        btn_clear.clicked.connect(lambda: self.link_input.setText(""))
+
+        input_row.addWidget(self.link_input, 1)
+        input_row.addWidget(btn_paste)
+        input_row.addWidget(btn_clear)
+        node_layout.addLayout(input_row)
+
+        self.node_info_label = QLabel("Узел распознан:")
+        self.node_info_label.setStyleSheet("color: #10b981; font-weight: 500;")
+        node_layout.addWidget(self.node_info_label)
+        main_layout.addWidget(node_group)
+
+        # 3. Main Tabs (ПК / Телефон / Игры / Настройки)
+        self.tabs = QTabWidget()
+
+        # Tab 1: PC
+        self.tab_pc = QWidget()
+        self._build_pc_tab()
+        self.tabs.addTab(self.tab_pc, "🖥️ Для Компьютера (Clash Verge)")
+
+        # Tab 2: Mobile
+        self.tab_mobile = QWidget()
+        self._build_mobile_tab()
+        self.tabs.addTab(self.tab_mobile, "📱 Для Телефона (Hiddify / v2rayNG)")
+
+        # Tab 3: Games List
+        self.tab_games = QWidget()
+        self._build_games_tab()
+        self.tabs.addTab(self.tab_games, "🎮 Игры в DIRECT (0)")
+
+        # Tab 4: Categories
+        self.tab_categories = QWidget()
+        self._build_categories_tab()
+        self.tabs.addTab(self.tab_categories, "🇷🇺 Российские Сервисы")
+
+        main_layout.addWidget(self.tabs, 1)
+
+        # Initial link parse
+        self._on_link_changed(self.link_input.text())
+
+    # --- TAB 1: PC ---
+    def _build_pc_tab(self):
+        layout = QVBoxLayout(self.tab_pc)
+        layout.setSpacing(14)
+
+        desc = QLabel(
+            "<b>Как это работает на ПК:</b> Все отмеченные игры (Dota 2, CS2, Overwatch и др.) и российские ресурсы "
+            "пойдут <b>напрямую (DIRECT)</b> с родным пингом 35 мс. Зарубежные сервисы (Discord, YouTube, Antigravity) "
+            "пойдут через ваш сервер в Швеции. Рекомендуемый клиент: <b>Clash Verge Rev</b> (ядро Mihomo) в режиме TUN."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #cbd5e1; line-height: 140%;")
+        layout.addWidget(desc)
+
+        action_card = QGroupBox("Развёртывание в 1 клик")
+        ac_layout = QVBoxLayout(action_card)
+        ac_layout.setSpacing(10)
+
+        self.btn_deploy_pc = QPushButton("🚀 Применить настройки в Clash Verge")
+        self.btn_deploy_pc.setObjectName("btnSuccess")
+        self.btn_deploy_pc.clicked.connect(self._deploy_clash)
+        ac_layout.addWidget(self.btn_deploy_pc)
+
+        self.pc_status_label = QLabel("Статус: Готов к развёртыванию")
+        self.pc_status_label.setStyleSheet("color: #94a3b8; font-weight: 500;")
+        ac_layout.addWidget(self.pc_status_label)
+
+        btn_row = QHBoxLayout()
+        btn_save_file = QPushButton("💾 Сохранить .yaml файл")
+        btn_save_file.clicked.connect(self._save_yaml_file)
+        btn_copy_yaml = QPushButton("📋 Скопировать YAML в буфер")
+        btn_copy_yaml.clicked.connect(self._copy_yaml)
+        btn_view_preview = QPushButton("👁️ Показать превью конфигурации")
+        btn_view_preview.clicked.connect(self._toggle_yaml_preview)
+
+        btn_row.addWidget(btn_save_file)
+        btn_row.addWidget(btn_copy_yaml)
+        btn_row.addWidget(btn_view_preview)
+        ac_layout.addLayout(btn_row)
+        layout.addWidget(action_card)
+
+        # YAML Preview text
+        self.yaml_preview = QTextEdit()
+        self.yaml_preview.setReadOnly(True)
+        self.yaml_preview.setStyleSheet("font-family: Consolas, monospace; font-size: 11px; background-color: #0d1117;")
+        self.yaml_preview.setVisible(False)
+        layout.addWidget(self.yaml_preview, 1)
+
+        layout.addStretch()
+
+    # --- TAB 2: MOBILE ---
+    def _build_mobile_tab(self):
+        layout = QHBoxLayout(self.tab_mobile)
+        layout.setSpacing(16)
+
+        # Left Column: QR Code
+        qr_box = QGroupBox("QR-код для импорта на смартфон")
+        qr_layout = QVBoxLayout(qr_box)
+        qr_layout.setAlignment(Qt.AlignCenter)
+
+        self.qr_label = QLabel()
+        self.qr_label.setFixedSize(320, 320)
+        self.qr_label.setStyleSheet("background-color: #ffffff; border-radius: 12px; padding: 10px;")
+        self.qr_label.setAlignment(Qt.AlignCenter)
+        qr_layout.addWidget(self.qr_label)
+
+        btn_copy_uri = QPushButton("📋 Скопировать VLESS ссылку")
+        btn_copy_uri.setObjectName("btnPrimary")
+        btn_copy_uri.clicked.connect(self._copy_mobile_link)
+        qr_layout.addWidget(btn_copy_uri)
+
+        layout.addWidget(qr_box)
+
+        # Right Column: Instructions & Clients
+        info_box = QGroupBox("Инструкция по настройке на телефоне")
+        info_layout = QVBoxLayout(info_box)
+        info_layout.setSpacing(10)
+
+        guide_text = QLabel(
+            "<b>Рекомендуемые приложения:</b><br>"
+            "• <b>Hiddify</b> (Android / iOS) — <i>Лучший выбор!</i> Поддерживает раздельное туннелирование из коробки.<br>"
+            "• <b>v2rayNG</b> (Android) — Классический быстрый клиент.<br><br>"
+            "<b>Как подключить за 10 секунд:</b><br>"
+            "1. Установите <b>Hiddify</b> из Google Play или App Store.<br>"
+            "2. В приложении нажмите иконку <b>«+»</b> вверху справа.<br>"
+            "3. Выберите <b>«Сканировать QR-код»</b> и наведите камеру на экран слева.<br>"
+            "4. В Hiddify перейдите в Настройки → Регион маршрутизации → выберите <b>«Россия» (Bypass RU)</b>.<br>"
+            "5. Нажмите большую кнопку подключения!<br><br>"
+            "<b>Результат:</b> Сбербанк, Госуслуги, Т-Банк, Яндекс и доставка работают напрямую без замедления, "
+            "а YouTube, Instagram и Discord летают через ваш сервер."
+        )
+        guide_text.setWordWrap(True)
+        guide_text.setStyleSheet("color: #cbd5e1; line-height: 140%;")
+        info_layout.addWidget(guide_text)
+
+        btn_copy_json = QPushButton("📋 Скопировать полный Sing-box JSON")
+        btn_copy_json.clicked.connect(self._copy_singbox_json)
+        info_layout.addWidget(btn_copy_json)
+
+        info_layout.addStretch()
+        layout.addWidget(info_box, 1)
+
+    # --- TAB 3: GAMES ---
+    def _build_games_tab(self):
+        layout = QVBoxLayout(self.tab_games)
+        layout.setSpacing(10)
+
+        top_row = QHBoxLayout()
+        self.games_search = QLineEdit()
+        self.games_search.setPlaceholderText("🔍 Поиск игры...")
+        self.games_search.textChanged.connect(self._filter_games)
+
+        btn_rescan = QPushButton("🔄 Пересканировать")
+        btn_rescan.clicked.connect(self._start_scan)
+        btn_add_exe = QPushButton("➕ Добавить свой .exe...")
+        btn_add_exe.clicked.connect(self._add_custom_exe)
+        btn_select_all = QPushButton("Выбрать все")
+        btn_select_all.clicked.connect(lambda: self._set_all_games(True))
+        btn_deselect_all = QPushButton("Снять все")
+        btn_deselect_all.clicked.connect(lambda: self._set_all_games(False))
+
+        top_row.addWidget(self.games_search, 1)
+        top_row.addWidget(btn_rescan)
+        top_row.addWidget(btn_add_exe)
+        top_row.addWidget(btn_select_all)
+        top_row.addWidget(btn_deselect_all)
+        layout.addLayout(top_row)
+
+        self.games_table = QTableWidget()
+        self.games_table.setColumnCount(5)
+        self.games_table.setHorizontalHeaderLabels(["DIRECT (Обход)", "Название игры", "Исполняемый файл (.exe)", "Источник", "Путь"])
+        self.games_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.games_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.games_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.games_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.games_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        self.games_table.verticalHeader().setVisible(False)
+        layout.addWidget(self.games_table)
+
+    # --- TAB 4: CATEGORIES ---
+    def _build_categories_tab(self):
+        layout = QVBoxLayout(self.tab_categories)
+        layout.setSpacing(12)
+
+        desc = QLabel("Выберите категории российских сервисов, которые должны работать напрямую (DIRECT) без VPN:")
+        desc.setStyleSheet("color: #94a3b8; font-weight: bold;")
+        layout.addWidget(desc)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        container = QWidget()
+        c_layout = QVBoxLayout(container)
+        c_layout.setSpacing(10)
+
+        for cat_name, domains in RU_DIRECT_CATEGORIES.items():
+            box = QGroupBox(cat_name)
+            b_layout = QVBoxLayout(box)
+
+            cb = QCheckBox(f"Включить обход для категории «{cat_name}» ({len(domains)} сервисов)")
+            cb.setChecked(True)
+            self.category_checkboxes[cat_name] = cb
+            b_layout.addWidget(cb)
+
+            sample_text = QLabel("Примеры: " + ", ".join(domains[:7]) + ("..." if len(domains) > 7 else ""))
+            sample_text.setStyleSheet("color: #64748b; font-size: 11px;")
+            b_layout.addWidget(sample_text)
+
+            c_layout.addWidget(box)
+
+        c_layout.addStretch()
+        scroll.setWidget(container)
+        layout.addWidget(scroll)
+
+    # --- ACTIONS & LOGIC ---
+    def _paste_clipboard(self):
+        text = QApplication.clipboard().text().strip()
+        if text:
+            self.link_input.setText(text)
+
+    def _on_link_changed(self, text: str):
+        try:
+            self.current_node = parse_vless_link(text)
+            self.node_info_label.setText(
+                f"✅ Узел: {self.current_node['name']} | Сервер: {self.current_node['server']}:{self.current_node['port']} | SNI: {self.current_node['servername']}"
+            )
+            self.node_info_label.setStyleSheet("color: #10b981; font-weight: 500;")
+            self._update_qr()
+        except Exception as e:
+            self.node_info_label.setText(f"⚠️ Ошибка формата ссылки: {e}")
+            self.node_info_label.setStyleSheet("color: #f59e0b; font-weight: 500;")
+
+    def _update_qr(self):
+        if not self.current_node or not self.current_node.get("server"):
+            return
+        try:
+            uri = build_vless_uri(self.current_node)
+            pil_img = generate_qr_image(uri, size=300)
+
+            # Convert PIL to QPixmap
+            buffer = BytesIO()
+            pil_img.save(buffer, format="PNG")
+            qimg = QImage.fromData(buffer.getvalue())
+            pixmap = QPixmap.fromImage(qimg)
+            self.qr_label.setPixmap(pixmap)
+        except Exception as e:
+            print("QR Error:", e)
+
+    def _start_scan(self):
+        self.games_table.setRowCount(0)
+        self.detected_games.clear()
+        self.thread = ScannerThread()
+        self.thread.finished.connect(self._on_scan_finished)
+        self.thread.start()
+
+    def _on_scan_finished(self, games: List[Dict[str, str]]):
+        self.detected_games = games
+        self.tabs.setTabText(2, f"🎮 Игры в DIRECT ({len(games)})")
+        self._populate_games_table(games)
+
+    def _populate_games_table(self, games: List[Dict[str, str]]):
+        self.games_table.setRowCount(len(games))
+        for row, g in enumerate(games):
+            # Checkbox
+            cb = QCheckBox()
+            cb.setChecked(True)
+            cb_widget = QWidget()
+            cb_layout = QHBoxLayout(cb_widget)
+            cb_layout.addWidget(cb)
+            cb_layout.setAlignment(Qt.AlignCenter)
+            cb_layout.setContentsMargins(0, 0, 0, 0)
+            self.games_table.setCellWidget(row, 0, cb_widget)
+
+            # Name
+            item_name = QTableWidgetItem(g["name"])
+            item_name.setFlags(item_name.flags() ^ Qt.ItemIsEditable)
+            self.games_table.setItem(row, 1, item_name)
+
+            # Executable
+            item_exe = QTableWidgetItem(g["exe"])
+            item_exe.setFlags(item_exe.flags() ^ Qt.ItemIsEditable)
+            item_exe.setForeground(QColor("#38bdf8"))
+            self.games_table.setItem(row, 2, item_exe)
+
+            # Source
+            item_src = QTableWidgetItem(g["source"])
+            item_src.setFlags(item_src.flags() ^ Qt.ItemIsEditable)
+            self.games_table.setItem(row, 3, item_src)
+
+            # Path
+            item_path = QTableWidgetItem(g.get("path", ""))
+            item_path.setFlags(item_path.flags() ^ Qt.ItemIsEditable)
+            item_path.setForeground(QColor("#64748b"))
+            self.games_table.setItem(row, 4, item_path)
+
+    def _filter_games(self, text: str):
+        text = text.lower().strip()
+        for row in range(self.games_table.rowCount()):
+            name_item = self.games_table.item(row, 1)
+            exe_item = self.games_table.item(row, 2)
+            match = (name_item and text in name_item.text().lower()) or (exe_item and text in exe_item.text().lower())
+            self.games_table.setRowHidden(row, not match if text else False)
+
+    def _set_all_games(self, state: bool):
+        for row in range(self.games_table.rowCount()):
+            w = self.games_table.cellWidget(row, 0)
+            if w:
+                cb = w.findChild(QCheckBox)
+                if cb:
+                    cb.setChecked(state)
+
+    def _add_custom_exe(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Выберите исполняемый файл игры", "", "Executable Files (*.exe)")
+        if file_path:
+            p = Path(file_path)
+            new_game = {
+                "name": p.stem,
+                "exe": p.name,
+                "path": str(p),
+                "source": "Custom"
+            }
+            self.detected_games.insert(0, new_game)
+            self.tabs.setTabText(2, f"🎮 Игры в DIRECT ({len(self.detected_games)})")
+            self._populate_games_table(self.detected_games)
+
+    def _get_selected_game_exes(self) -> List[str]:
+        selected = []
+        for row in range(self.games_table.rowCount()):
+            w = self.games_table.cellWidget(row, 0)
+            if w:
+                cb = w.findChild(QCheckBox)
+                if cb and cb.isChecked():
+                    exe_item = self.games_table.item(row, 2)
+                    if exe_item:
+                        selected.append(exe_item.text().strip())
+        return selected
+
+    def _get_enabled_categories(self) -> List[str]:
+        return [cat for cat, cb in self.category_checkboxes.items() if cb.isChecked()]
+
+    def _deploy_clash(self):
+        if not self.current_node or not self.current_node.get("server"):
+            QMessageBox.warning(self, "Внимание", "Пожалуйста, введите корректную vless:// ссылку.")
+            return
+
+        try:
+            exes = self._get_selected_game_exes()
+            cats = self._get_enabled_categories()
+            yaml_content = generate_clash_yaml(self.current_node, exes, cats)
+            result = deploy_to_clash_verge(yaml_content, profile_name="Smart Split-Tunneling")
+
+            if result["status"] == "success":
+                msg = f"Профиль успешно применён!\nПуть: {result['path']}\nПерезагрузка ядра: {result['reloaded']}"
+                self.pc_status_label.setText(f"✅ Успешно применен в Clash Verge ({len(exes)} игр в DIRECT)")
+                self.pc_status_label.setStyleSheet("color: #10b981; font-weight: bold;")
+                QMessageBox.information(self, "Успех", msg)
+            else:
+                self.pc_status_label.setText(f"⚠️ Ошибка: {result['message']}")
+                self.pc_status_label.setStyleSheet("color: #ef4444; font-weight: bold;")
+                QMessageBox.critical(self, "Ошибка развёртывания", result["message"])
+        except Exception as e:
+            QMessageBox.critical(self, "Исключение", str(e))
+
+    def _save_yaml_file(self):
+        if not self.current_node:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Сохранить профиль Clash", "smart_split_tunnel.yaml", "YAML Files (*.yaml *.yml)")
+        if path:
+            exes = self._get_selected_game_exes()
+            cats = self._get_enabled_categories()
+            content = generate_clash_yaml(self.current_node, exes, cats)
+            Path(path).write_text(content, encoding="utf-8")
+            QMessageBox.information(self, "Успех", f"Файл сохранён:\n{path}")
+
+    def _copy_yaml(self):
+        if not self.current_node:
+            return
+        exes = self._get_selected_game_exes()
+        cats = self._get_enabled_categories()
+        content = generate_clash_yaml(self.current_node, exes, cats)
+        QApplication.clipboard().setText(content)
+        QMessageBox.information(self, "Скопировано", "YAML-профиль скопирован в буфер обмена!")
+
+    def _toggle_yaml_preview(self):
+        vis = not self.yaml_preview.isVisible()
+        self.yaml_preview.setVisible(vis)
+        if vis and self.current_node:
+            exes = self._get_selected_game_exes()
+            cats = self._get_enabled_categories()
+            content = generate_clash_yaml(self.current_node, exes, cats)
+            self.yaml_preview.setText(content)
+
+    def _copy_mobile_link(self):
+        if not self.current_node:
+            return
+        uri = build_vless_uri(self.current_node)
+        QApplication.clipboard().setText(uri)
+        QMessageBox.information(self, "Скопировано", "VLESS-ссылка скопирована в буфер обмена!")
+
+    def _copy_singbox_json(self):
+        if not self.current_node:
+            return
+        cats = self._get_enabled_categories()
+        content = generate_singbox_json(self.current_node, cats)
+        QApplication.clipboard().setText(content)
+        QMessageBox.information(self, "Скопировано", "Sing-box JSON скопирован в буфер обмена!")
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
