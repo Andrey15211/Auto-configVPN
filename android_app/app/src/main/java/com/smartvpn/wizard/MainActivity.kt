@@ -45,9 +45,13 @@ class MainActivity : AppCompatActivity() {
         setupListeners()
         loadInstalledApps()
 
-        // Background update check on startup
+        // Schedule periodic update check (2 times a day at 12:00 and 00:00)
+        com.smartvpn.wizard.updater.UpdateWorker.schedulePeriodicCheck(this)
+
+        // Immediate update check on app launch
+        val showUpdatePopup = intent.getBooleanExtra("EXTRA_SHOW_UPDATE", false)
         lifecycleScope.launch {
-            updateChecker.checkForUpdates(isManualCheck = false)
+            updateChecker.checkForUpdates(isManualCheck = showUpdatePopup)
         }
     }
 

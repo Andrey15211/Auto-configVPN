@@ -1,12 +1,16 @@
-﻿import sys
+import sys
 import os
 import re
+import json
+import urllib.request
 from io import BytesIO
 from pathlib import Path
 from typing import List, Dict
+from datetime import datetime, timedelta
 
-from PySide6.QtCore import Qt, QThread, Signal, QSize
-from PySide6.QtGui import QIcon, QPixmap, QImage, QFont, QColor
+from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer
+from PySide6.QtGui import QIcon, QPixmap, QImage, QFont, QColor, QDesktopServices
+from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTabWidget, QTableWidget,
@@ -182,6 +186,55 @@ QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
 """
 
 
+APP_VERSION = "1.0.0"
+GITHUB_REPO = "Andrey15211/Auto-configVPN"
+
+
+class UpdateCheckerThread(QThread):
+    update_available = Signal(str, str, str)  # tag, changelog, download_url
+    check_finished = Signal(bool, str)        # found, message
+
+    def __init__(self, manual: bool = False):
+        super().__init__()
+        self.manual = manual
+
+    def run(self):
+        try:
+            url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "Auto-configVPN-PC", "Accept": "application/vnd.github.v3+json"}
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    tag = data.get("tag_name", "").lstrip("vV")
+                    body = data.get("body", "")
+                    assets = data.get("assets", [])
+                    exe_asset = next(
+                        (a["browser_download_url"] for a in assets if a.get("name", "").endswith(".exe")),
+                        data.get("html_url", f"https://github.com/{GITHUB_REPO}/releases")
+                    )
+
+                    if self._is_newer(tag, APP_VERSION):
+                        self.update_available.emit(tag, body, exe_asset)
+                        self.check_finished.emit(True, f"Доступна новая версия v{tag}")
+                    else:
+                        self.check_finished.emit(False, "У вас установлена актуальная версия")
+                else:
+                    self.check_finished.emit(False, f"Ответ сервера: {resp.status}")
+        except Exception as e:
+            self.check_finished.emit(False, f"Не удалось проверить: {e}")
+
+    def _is_newer(self, remote: str, current: str) -> bool:
+        r_parts = [int(p) for p in re.findall(r"\d+", remote)]
+        c_parts = [int(p) for p in re.findall(r"\d+", current)]
+        max_l = max(len(r_parts), len(c_parts))
+        r_parts += [0] * (max_l - len(r_parts))
+        c_parts += [0] * (max_l - len(c_parts))
+        return r_parts > c_parts
+
+
 class ScannerThread(QThread):
     finished = Signal(list)
 
@@ -193,7 +246,7 @@ class ScannerThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Smart Split-Tunneling Wizard (ПК & Телефон)")
+        self.setWindowTitle(f"Smart Split-Tunneling Wizard v{APP_VERSION} (ПК & Телефон)")
         self.resize(1020, 780)
         self.setMinimumSize(880, 650)
         self.setStyleSheet(MODERN_DARK_QSS)
@@ -204,6 +257,49 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._start_scan()
+        self._start_update_check(manual=False)
+        self._schedule_periodic_update_check()
+
+    def _schedule_periodic_update_check(self):
+        """Schedule automatic update check twice a day: at 12:00 PM and 12:00 AM (midnight)."""
+        now = datetime.now()
+        if now.hour < 12:
+            target = now.replace(hour=12, minute=0, second=0, microsecond=0)
+        else:
+            target = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        delay_ms = max(5000, int((target - now).total_seconds() * 1000))
+        self.update_timer = QTimer(self)
+        self.update_timer.setSingleShot(True)
+        self.update_timer.timeout.connect(self._on_periodic_update_tick)
+        self.update_timer.start(delay_ms)
+
+    def _on_periodic_update_tick(self):
+        self._start_update_check(manual=False)
+        self._schedule_periodic_update_check()
+
+    def _start_update_check(self, manual: bool = False):
+        self.update_thread = UpdateCheckerThread(manual=manual)
+        self.update_thread.update_available.connect(self._on_update_available)
+        if manual:
+            self.update_thread.check_finished.connect(self._on_manual_check_finished)
+        self.update_thread.start()
+
+    def _on_update_available(self, tag: str, body: str, download_url: str):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Доступно обновление Auto-configVPN")
+        msg.setText(f"<b>Вышло обновление v{tag}!</b><br><br>Текущая версия: v{APP_VERSION}")
+        msg.setInformativeText(f"Что нового:\n{body[:400] if body else 'Оптимизации маршрутизации и исправления'}")
+        btn_update = msg.addButton("Скачать обновление", QMessageBox.AcceptRole)
+        msg.addButton("Позже", QMessageBox.RejectRole)
+        msg.exec()
+
+        if msg.clickedButton() == btn_update:
+            QDesktopServices.openUrl(QUrl(download_url))
+
+    def _on_manual_check_finished(self, found: bool, message: str):
+        if not found:
+            QMessageBox.information(self, "Проверка обновлений", message)
 
     def _build_ui(self):
         main_widget = QWidget()
@@ -216,13 +312,31 @@ class MainWindow(QMainWindow):
         header_layout = QHBoxLayout()
         title_label = QLabel("⚡ Smart Split-Tunneling Wizard")
         title_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #60a5fa;")
-        subtitle = QLabel("Автоматическое раздельное туннелирование для игр и сервисов РФ")
+        subtitle = QLabel("Раздельное туннелирование (ПК & Android)")
         subtitle.setStyleSheet("color: #64748b; font-size: 13px;")
+
+        self.btn_check_update = QPushButton("🔄 Проверить обновления")
+        self.btn_check_update.setStyleSheet("""
+            QPushButton {
+                background-color: #1a2130;
+                border: 1px solid #2d3748;
+                border-radius: 6px;
+                padding: 6px 12px;
+                color: #94a3b8;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                border-color: #3b82f6;
+                color: #60a5fa;
+            }
+        """)
+        self.btn_check_update.clicked.connect(lambda: self._start_update_check(manual=True))
 
         header_layout.addWidget(title_label)
         header_layout.addSpacing(10)
         header_layout.addWidget(subtitle)
         header_layout.addStretch()
+        header_layout.addWidget(self.btn_check_update)
         main_layout.addLayout(header_layout)
 
         # 2. Server Input Box

@@ -28,8 +28,8 @@ import java.util.concurrent.TimeUnit
 
 class GitHubUpdateChecker(
     private val context: Context,
-    private var repoOwner: String = "username",
-    private var repoName: String = "smart-split-vpn"
+    var repoOwner: String = "Andrey15211",
+    var repoName: String = "Auto-configVPN"
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -90,7 +90,36 @@ class GitHubUpdateChecker(
         }
     }
 
-    private fun getCurrentAppVersion(): String {
+    suspend fun fetchLatestRelease(): Pair<GitHubRelease, GitHubAsset>? = withContext(Dispatchers.IO) {
+        try {
+            val url = "https://api.github.com/repos/$repoOwner/$repoName/releases/latest"
+            val request = Request.Builder()
+                .url(url)
+                .header("Accept", "application/vnd.github.v3+json")
+                .header("User-Agent", "SmartVPNWizard-Android")
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) return@withContext null
+            val body = response.body?.string() ?: return@withContext null
+            val release = gson.fromJson(body, GitHubRelease::class.java)
+
+            val currentVersion = getCurrentAppVersion()
+            val remoteVersion = release.tagName.trimStart('v', 'V')
+
+            if (isNewerVersion(remoteVersion, currentVersion)) {
+                val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+                if (apkAsset != null) {
+                    return@withContext Pair(release, apkAsset)
+                }
+            }
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun getCurrentAppVersion(): String {
         return try {
             val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             pInfo.versionName ?: "1.0.0"
@@ -99,7 +128,7 @@ class GitHubUpdateChecker(
         }
     }
 
-    private fun isNewerVersion(remote: String, current: String): Boolean {
+    fun isNewerVersion(remote: String, current: String): Boolean {
         val remoteParts = remote.split(".").mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
         val currentParts = current.split(".").mapNotNull { it.filter { c -> c.isDigit() }.toIntOrNull() }
 

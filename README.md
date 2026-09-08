@@ -100,9 +100,9 @@ cd android_app
 
 ## 🚀 Деплой на GitHub
 
-1. Инициализируйте удаленный репозиторий:
+1. Удаленный репозиторий:
    ```bash
-   git remote add origin https://github.com/<ВАШ_АККАУНТ>/<ВАШ_РЕПОЗИТОРИЙ>.git
+   git remote add origin https://github.com/Andrey15211/Auto-configVPN.git
    git branch -M main
    git push -u origin main
    ```
