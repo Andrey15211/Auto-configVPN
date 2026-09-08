@@ -397,6 +397,22 @@ def deploy_to_clash_verge(yaml_content: str, profile_name: str = "Smart Split-Tu
             except Exception:
                 pass
 
+        if not prof_data.get("current"):
+            prof_data["current"] = "smart_split_tunnel"
+
+        items = prof_data.get("items")
+        if not isinstance(items, list):
+            items = []
+
+        # Find first proxy name if available
+        first_proxy = "DIRECT"
+        try:
+            parsed = yaml.safe_load(yaml_content)
+            if isinstance(parsed, dict) and parsed.get("proxies"):
+                first_proxy = parsed["proxies"][0].get("name", "DIRECT")
+        except Exception:
+            pass
+
         # Add or update smart_split_tunnel entry in profiles.yaml
         found = False
         for it in items:
@@ -405,7 +421,7 @@ def deploy_to_clash_verge(yaml_content: str, profile_name: str = "Smart Split-Tu
                 it["name"] = profile_name
                 it["updated"] = int(time.time())
                 if "selected" not in it:
-                    it["selected"] = [{"name": "PROXY", "now": "DIRECT"}, {"name": "GAMES", "now": "DIRECT"}]
+                    it["selected"] = [{"name": "PROXY", "now": first_proxy}, {"name": "GAMES", "now": "DIRECT"}]
                 found = True
                 break
         if not found:
@@ -414,12 +430,12 @@ def deploy_to_clash_verge(yaml_content: str, profile_name: str = "Smart Split-Tu
                 "type": "local",
                 "name": profile_name,
                 "file": filename,
-                "selected": [{"name": "PROXY", "now": "DIRECT"}, {"name": "GAMES", "now": "DIRECT"}],
+                "selected": [{"name": "PROXY", "now": first_proxy}, {"name": "GAMES", "now": "DIRECT"}],
                 "updated": int(time.time())
             })
 
         prof_data["items"] = items
-        profiles_yaml_path.write_text(yaml.dump(prof_data, allow_unicode=True), encoding="utf-8")
+        profiles_yaml_path.write_text(yaml.dump(prof_data, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
         # Check if Clash Verge is currently running
         is_running = is_clash_verge_running()
