@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import time
 import base64
 import urllib.parse
 import urllib.request
@@ -396,14 +397,15 @@ def deploy_to_clash_verge(yaml_content: str, profile_name: str = "Smart Split-Tu
             except Exception:
                 pass
 
-        items = prof_data.get("items", [])
-        # Find or create entry
+        # Add or update smart_split_tunnel entry in profiles.yaml
         found = False
         for it in items:
             if it.get("uid") == "smart_split_tunnel" or it.get("file") == filename:
                 it["file"] = filename
                 it["name"] = profile_name
-                it["updated"] = int(Path().stat().st_mtime) if Path().exists() else 0
+                it["updated"] = int(time.time())
+                if "selected" not in it:
+                    it["selected"] = [{"name": "PROXY", "now": "DIRECT"}, {"name": "GAMES", "now": "DIRECT"}]
                 found = True
                 break
         if not found:
@@ -411,27 +413,38 @@ def deploy_to_clash_verge(yaml_content: str, profile_name: str = "Smart Split-Tu
                 "uid": "smart_split_tunnel",
                 "type": "local",
                 "name": profile_name,
-                "file": filename
+                "file": filename,
+                "selected": [{"name": "PROXY", "now": "DIRECT"}, {"name": "GAMES", "now": "DIRECT"}],
+                "updated": int(time.time())
             })
 
         prof_data["items"] = items
-        prof_data["current"] = "smart_split_tunnel"
         profiles_yaml_path.write_text(yaml.dump(prof_data, allow_unicode=True), encoding="utf-8")
 
-        # Also overwrite clash-verge.yaml so active config matches immediately
-        clash_verge_yaml = profiles_dir.parent / "clash-verge.yaml"
-        clash_verge_yaml.write_text(yaml_content, encoding="utf-8")
-
-        # Hot reload via named pipe
-        reloaded = _reload_named_pipe(clash_verge_yaml)
+        # Check if Clash Verge is currently running
+        is_running = is_clash_verge_running()
 
         return {
             "status": "success",
             "path": str(target_path),
-            "reloaded": "Да (без перезапуска Clash Verge)" if reloaded else "Профиль сохранен, переключите в Clash Verge"
+            "clash_running": is_running,
+            "message": "Новый профиль успешно создан как отдельная карточка"
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+def is_clash_verge_running() -> bool:
+    """Check if clash-verge.exe process is currently active."""
+    import subprocess
+    try:
+        out = subprocess.check_output(
+            ["tasklist", "/FI", "IMAGENAME eq clash-verge.exe"],
+            text=True, stderr=subprocess.DEVNULL
+        )
+        return "clash-verge.exe" in out.lower()
+    except Exception:
+        return False
 
 
 def _reload_named_pipe(config_path: Path) -> bool:

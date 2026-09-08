@@ -804,10 +804,31 @@ class MainWindow(QMainWindow):
             result = deploy_to_clash_verge(yaml_content, profile_name="Smart Split-Tunneling")
 
             if result["status"] == "success":
-                msg = f"Профиль успешно применён!\nСерверов в пуле: {len(nodes)}\nИгр в DIRECT: {len(exes)}\nПуть: {result['path']}\nПерезагрузка ядра: {result['reloaded']}"
-                self.pc_status_label.setText(f"✅ Успешно применен в Clash Verge ({len(nodes)} серв., {len(exes)} игр в DIRECT)")
+                clash_running = result.get("clash_running", False)
+                if clash_running:
+                    msg = (
+                        f"✅ Отдельный профиль успешно создан!\n\n"
+                        f"• Файл профиля: {Path(result['path']).name}\n"
+                        f"• Серверов в профиле: {len(nodes)}\n"
+                        f"• Игр в прямом обходе (DIRECT): {len(exes)}\n\n"
+                        f"📌 Clash Verge сейчас открыт.\n"
+                        f"Чтобы в Clash Verge сразу отобразилась вторая карточка рядом с вашей Амнезией:\n"
+                        f"1. Закройте Clash Verge (в трее возле часов: правый клик → «Выход» / «Quit»).\n"
+                        f"2. Откройте Clash Verge снова — на экране появятся ОБЕ карточки!\n\n"
+                        f"(Ваш профиль Амнезии полностью защищён и остался нетронутым)."
+                    )
+                else:
+                    msg = (
+                        f"✅ Отдельный профиль успешно добавлен в Clash Verge!\n\n"
+                        f"• Серверов в профиле: {len(nodes)}\n"
+                        f"• Игр в DIRECT: {len(exes)}\n\n"
+                        f"При следующем запуске Clash Verge вы увидите обе независимые карточки:\n"
+                        f"1. «Aeza Sweden (Reality)» (Амнезия)\n"
+                        f"2. «Smart Split-Tunneling» ({len(nodes)} серверов)"
+                    )
+                self.pc_status_label.setText(f"✅ Создан отдельный профиль ({len(nodes)} серв., {len(exes)} игр в DIRECT)")
                 self.pc_status_label.setStyleSheet("color: #10b981; font-weight: bold;")
-                QMessageBox.information(self, "Успех", msg)
+                QMessageBox.information(self, "Новый профиль создан", msg)
             else:
                 self.pc_status_label.setText(f"⚠️ Ошибка: {result['message']}")
                 self.pc_status_label.setStyleSheet("color: #ef4444; font-weight: bold;")
