@@ -3,6 +3,7 @@ import os
 import re
 import json
 import urllib.request
+import urllib.error
 from io import BytesIO
 from pathlib import Path
 from typing import List, Dict
@@ -221,8 +222,15 @@ class UpdateCheckerThread(QThread):
                         self.check_finished.emit(True, f"Доступна новая версия v{tag}")
                     else:
                         self.check_finished.emit(False, "У вас установлена актуальная версия")
+                elif resp.status == 404:
+                    self.check_finished.emit(False, f"Релизов пока нет. У вас актуальная версия (v{APP_VERSION}).")
                 else:
                     self.check_finished.emit(False, f"Ответ сервера: {resp.status}")
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                self.check_finished.emit(False, f"Релизов пока нет. У вас актуальная версия (v{APP_VERSION}).")
+            else:
+                self.check_finished.emit(False, f"Ошибка проверки ({e.code})")
         except Exception as e:
             self.check_finished.emit(False, f"Не удалось проверить: {e}")
 

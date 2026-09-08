@@ -56,7 +56,11 @@ class GitHubUpdateChecker(
             if (!response.isSuccessful) {
                 if (isManualCheck) {
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Не удалось проверить обновления (${response.code})", Toast.LENGTH_SHORT).show()
+                        if (response.code == 404) {
+                            Toast.makeText(context, context.getString(R.string.update_latest), Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Не удалось проверить обновления (${response.code})", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
                 return@withContext
