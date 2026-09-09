@@ -127,6 +127,10 @@ class MainActivity : AppCompatActivity() {
             exportSingBox(share = true)
         }
 
+        binding.btnSaveSingbox.setOnClickListener {
+            saveSingBoxFile()
+        }
+
         // --- Xray / v2rayNG Actions ---
         binding.btnCopyVless.setOnClickListener {
             exportVlessLinks()
@@ -136,6 +140,10 @@ class MainActivity : AppCompatActivity() {
             exportBase64()
         }
 
+        binding.btnSaveVless.setOnClickListener {
+            saveVlessFile()
+        }
+
         // --- Clash / Flclash Actions ---
         binding.btnCopyClash.setOnClickListener {
             exportClash(share = false)
@@ -143,6 +151,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.btnShareClash.setOnClickListener {
             exportClash(share = true)
+        }
+
+        binding.btnSaveClash.setOnClickListener {
+            saveClashFile()
         }
     }
 
@@ -251,6 +263,97 @@ class MainActivity : AppCompatActivity() {
                 }
             } catch (e: Exception) {
                 showErrorDialog(e.localizedMessage ?: "Ошибка формирования Clash YAML")
+            }
+        }
+    }
+
+    private fun saveSingBoxFile() {
+        val link = getValidatedLink() ?: return
+        lifecycleScope.launch {
+            try {
+                val nodes = withContext(Dispatchers.IO) { configGenerator.parseNodes(link) }
+                val selectedPackages = appAdapter.getSelectedPackages()
+                val json = configGenerator.generateSingBoxJson(nodes, selectedPackages)
+                val (success, path) = withContext(Dispatchers.IO) {
+                    com.smartvpn.wizard.util.FileExportHelper.saveFileToDownloads(
+                        this@MainActivity,
+                        "smart_singbox.json",
+                        "application/json",
+                        json
+                    )
+                }
+
+                if (success) {
+                    MaterialAlertDialogBuilder(this@MainActivity)
+                        .setTitle("💾 Файл сохранён!")
+                        .setMessage("Конфигурация успешно сохранена:\n$path\n\nКак импортировать в Hiddify / NekoBox:\n1. Откройте Hiddify (или NekoBox).\n2. Нажмите «Новый профиль» (или [+]).\n3. Выберите «Импорт из файла» ➔ выберите smart_singbox.json из папки Загрузки.")
+                        .setPositiveButton("Понятно", null)
+                        .show()
+                } else {
+                    showErrorDialog(path)
+                }
+            } catch (e: Exception) {
+                showErrorDialog(e.localizedMessage ?: "Ошибка сохранения файла")
+            }
+        }
+    }
+
+    private fun saveVlessFile() {
+        val link = getValidatedLink() ?: return
+        lifecycleScope.launch {
+            try {
+                val nodes = withContext(Dispatchers.IO) { configGenerator.parseNodes(link) }
+                val rawLinks = configGenerator.buildRawLinks(nodes)
+                val (success, path) = withContext(Dispatchers.IO) {
+                    com.smartvpn.wizard.util.FileExportHelper.saveFileToDownloads(
+                        this@MainActivity,
+                        "vless_nodes.txt",
+                        "text/plain",
+                        rawLinks
+                    )
+                }
+
+                if (success) {
+                    MaterialAlertDialogBuilder(this@MainActivity)
+                        .setTitle("💾 Файл сохранён!")
+                        .setMessage("Ссылки узлов сохранены:\n$path\n\nКак импортировать в v2rayNG:\n1. Откройте v2rayNG.\n2. Нажмите [+] ➔ «Импорт из файла» ➔ выберите vless_nodes.txt.")
+                        .setPositiveButton("Понятно", null)
+                        .show()
+                } else {
+                    showErrorDialog(path)
+                }
+            } catch (e: Exception) {
+                showErrorDialog(e.localizedMessage ?: "Ошибка сохранения файла")
+            }
+        }
+    }
+
+    private fun saveClashFile() {
+        val link = getValidatedLink() ?: return
+        lifecycleScope.launch {
+            try {
+                val nodes = withContext(Dispatchers.IO) { configGenerator.parseNodes(link) }
+                val yaml = configGenerator.generateClashYaml(nodes)
+                val (success, path) = withContext(Dispatchers.IO) {
+                    com.smartvpn.wizard.util.FileExportHelper.saveFileToDownloads(
+                        this@MainActivity,
+                        "smart_clash.yaml",
+                        "application/x-yaml",
+                        yaml
+                    )
+                }
+
+                if (success) {
+                    MaterialAlertDialogBuilder(this@MainActivity)
+                        .setTitle("💾 Файл сохранён!")
+                        .setMessage("Clash-профиль сохранён:\n$path\n\nКак импортировать в Flclash / CMFA:\n1. Откройте Flclash.\n2. Перейдите в Profiles ➔ [+].\n3. Выберите «File» (Импорт из файла) ➔ выберите smart_clash.yaml.")
+                        .setPositiveButton("Понятно", null)
+                        .show()
+                } else {
+                    showErrorDialog(path)
+                }
+            } catch (e: Exception) {
+                showErrorDialog(e.localizedMessage ?: "Ошибка сохранения файла")
             }
         }
     }

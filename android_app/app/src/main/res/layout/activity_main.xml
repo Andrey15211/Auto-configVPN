@@ -274,6 +274,18 @@
                                 app:cornerRadius="8dp"
                                 app:strokeColor="@color/card_stroke" />
                         </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSaveSingbox"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="💾 Сохранить singbox.json в Загрузки"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_primary"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/card_stroke" />
                     </LinearLayout>
 
                     <!-- Section B: Xray Core (v2rayNG) -->
@@ -328,6 +340,18 @@
                                 android:textSize="12sp"
                                 app:cornerRadius="8dp" />
                         </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSaveVless"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="💾 Сохранить vless_nodes.txt в Загрузки"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_primary"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/card_stroke" />
                     </LinearLayout>
 
                     <!-- Section C: Clash Core (Flclash) -->
@@ -381,6 +405,18 @@
                                 app:cornerRadius="8dp"
                                 app:strokeColor="@color/card_stroke" />
                         </LinearLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSaveClash"
+                            style="@style/Widget.Material3.Button.OutlinedButton"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="6dp"
+                            android:text="💾 Сохранить clash_config.yaml в Загрузки"
+                            android:textSize="12sp"
+                            android:textColor="@color/text_primary"
+                            app:cornerRadius="8dp"
+                            app:strokeColor="@color/card_stroke" />
                     </LinearLayout>
 
                 </LinearLayout>
