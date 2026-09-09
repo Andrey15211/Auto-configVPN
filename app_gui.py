@@ -596,6 +596,7 @@ class MainWindow(QMainWindow):
         self.singbox_status_label.setStyleSheet("color: #94a3b8; font-weight: 500;")
         ac_layout.addWidget(self.singbox_status_label)
 
+        btn_row = QHBoxLayout()
         self.btn_copy_singbox = QPushButton("📋 Скопировать Sing-box JSON в буфер")
         self.btn_copy_singbox.clicked.connect(self._copy_singbox_json)
         btn_view_preview = QPushButton("👁️ Превью Sing-box JSON")
