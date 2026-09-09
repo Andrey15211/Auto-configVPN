@@ -114,71 +114,171 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Сброшено к рекомендованным российским сервисам", Toast.LENGTH_SHORT).show()
         }
 
-        binding.btnGenerate.setOnClickListener {
-            generateSingBoxConfig()
+        binding.btnHelpClients.setOnClickListener {
+            showClientsHelpDialog()
         }
 
-        binding.btnCopyConfig.setOnClickListener {
-            if (lastGeneratedJson.isEmpty()) {
-                generateSingBoxConfig()
-            }
-            if (lastGeneratedJson.isNotEmpty()) {
-                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clip = ClipData.newPlainText("Sing-box Config", lastGeneratedJson)
-                clipboard.setPrimaryClip(clip)
-                Toast.makeText(this, "JSON конфиг скопирован в буфер!", Toast.LENGTH_SHORT).show()
-            }
+        // --- Sing-box Actions ---
+        binding.btnCopySingbox.setOnClickListener {
+            exportSingBox(share = false)
         }
 
-        binding.btnShareConfig.setOnClickListener {
-            if (lastGeneratedJson.isEmpty()) {
-                generateSingBoxConfig()
-            }
-            if (lastGeneratedJson.isNotEmpty()) {
-                val sendIntent = Intent().apply {
-                    action = Intent.ACTION_SEND
-                    putExtra(Intent.EXTRA_TEXT, lastGeneratedJson)
-                    type = "text/plain"
+        binding.btnShareSingbox.setOnClickListener {
+            exportSingBox(share = true)
+        }
+
+        // --- Xray / v2rayNG Actions ---
+        binding.btnCopyVless.setOnClickListener {
+            exportVlessLinks()
+        }
+
+        binding.btnCopyBase64.setOnClickListener {
+            exportBase64()
+        }
+
+        // --- Clash / Flclash Actions ---
+        binding.btnCopyClash.setOnClickListener {
+            exportClash(share = false)
+        }
+
+        binding.btnShareClash.setOnClickListener {
+            exportClash(share = true)
+        }
+    }
+
+    private fun getValidatedLink(): String? {
+        val link = binding.etVlessLink.text?.toString()?.trim() ?: ""
+        if (link.isEmpty()) {
+            Toast.makeText(this, "Укажите ссылку vless:// или подписку https://", Toast.LENGTH_LONG).show()
+            return null
+        }
+        return link
+    }
+
+    private fun copyToClipboard(label: String, text: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+    }
+
+    private fun shareText(title: String, text: String) {
+        val sendIntent = Intent().apply {
+            action = Intent.ACTION_SEND
+            putExtra(Intent.EXTRA_TEXT, text)
+            type = "text/plain"
+        }
+        startActivity(Intent.createChooser(sendIntent, title))
+    }
+
+    private fun exportSingBox(share: Boolean) {
+        val link = getValidatedLink() ?: return
+        lifecycleScope.launch {
+            try {
+                val nodes = withContext(Dispatchers.IO) { configGenerator.parseNodes(link) }
+                val selectedPackages = appAdapter.getSelectedPackages()
+                val json = configGenerator.generateSingBoxJson(nodes, selectedPackages)
+                lastGeneratedJson = json
+
+                if (share) {
+                    shareText("Поделиться Sing-box конфигурацией", json)
+                } else {
+                    copyToClipboard("Sing-box Config", json)
+                    MaterialAlertDialogBuilder(this@MainActivity)
+                        .setTitle("✅ Sing-box JSON скопирован!")
+                        .setMessage("Узлов: ${nodes.size}, приложений в обходе: ${selectedPackages.size}.\n\nПоддерживаемые клиенты:\n• Hiddify\n• NekoBox for Android\n• Karing\n• Sing-box\n\nВ приложении клиента выберите «Добавить из буфера обмена». Все выбранные приложения пойдут напрямую без VPN!")
+                        .setPositiveButton("Понятно", null)
+                        .show()
                 }
-                val shareIntent = Intent.createChooser(sendIntent, "Поделиться Sing-box конфигурацией")
-                startActivity(shareIntent)
+            } catch (e: Exception) {
+                showErrorDialog(e.localizedMessage ?: "Ошибка формирования Sing-box")
             }
         }
     }
 
-    private fun generateSingBoxConfig() {
-        val link = binding.etVlessLink.text?.toString()?.trim() ?: ""
-        if (link.isEmpty()) {
-            Toast.makeText(this, "Пожалуйста, укажите ссылку на сервер или подписку", Toast.LENGTH_LONG).show()
-            return
-        }
-
+    private fun exportVlessLinks() {
+        val link = getValidatedLink() ?: return
         lifecycleScope.launch {
             try {
-                val node = withContext(Dispatchers.IO) {
-                    configGenerator.parseLinkOrSubscription(link)
-                }
-                val selectedPackages = appAdapter.getSelectedPackages()
-                lastGeneratedJson = configGenerator.generateConfigJson(node, selectedPackages)
+                val nodes = withContext(Dispatchers.IO) { configGenerator.parseNodes(link) }
+                val rawLinks = configGenerator.buildRawLinks(nodes)
+                copyToClipboard("VLESS Links", rawLinks)
 
                 MaterialAlertDialogBuilder(this@MainActivity)
-                    .setTitle("Конфигурация готова!")
-                    .setMessage("Сгенерирован профиль Sing-box для узла «${node.name}» с ${selectedPackages.size} приложениями в прямом обходе (Direct).\n\nВы можете скопировать или поделиться им для импорта в Hiddify, Sing-box или v2rayNG.")
-                    .setPositiveButton("Скопировать") { _, _ ->
-                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText("Sing-box Config", lastGeneratedJson))
-                        Toast.makeText(this@MainActivity, "Конфиг скопирован!", Toast.LENGTH_SHORT).show()
-                    }
-                    .setNegativeButton("Закрыть", null)
+                    .setTitle("✅ vless:// ссылки скопированы!")
+                    .setMessage("Скопировано узлов: ${nodes.size}.\n\nКак использовать в v2rayNG / v2rayTun:\n1. Откройте v2rayNG.\n2. Нажмите [+] в правом верхнем углу ➔ «Импорт профиля из буфера обмена».\n\n⚠️ ВНИМАНИЕ ПО ОБХОДУ ПРИЛОЖЕНИЙ:\nЯдро Xray не принимает правила приложений внутри ссылки. Чтобы банки и маркетплейсы шли мимо VPN, в v2rayNG откройте:\nМеню ➔ Настройки ➔ «Раздельное туннелирование» ➔ отметьте нужные приложения.")
+                    .setPositiveButton("Понятно", null)
                     .show()
-
             } catch (e: Exception) {
-                MaterialAlertDialogBuilder(this@MainActivity)
-                    .setTitle("Ошибка формирования")
-                    .setMessage(e.localizedMessage ?: "Неверный формат ссылки")
-                    .setPositiveButton("OK", null)
-                    .show()
+                showErrorDialog(e.localizedMessage ?: "Ошибка парсинга ссылок")
             }
         }
+    }
+
+    private fun exportBase64() {
+        val link = getValidatedLink() ?: return
+        lifecycleScope.launch {
+            try {
+                val nodes = withContext(Dispatchers.IO) { configGenerator.parseNodes(link) }
+                val b64 = configGenerator.buildBase64Subscription(nodes)
+                copyToClipboard("Base64 Subscription", b64)
+
+                MaterialAlertDialogBuilder(this@MainActivity)
+                    .setTitle("✅ Base64 подписка скопирована!")
+                    .setMessage("Сгенерирована единая строка подписки для узлов: ${nodes.size}.\n\nПодходит для v2rayNG, Incy, Happ, Streisand, V2Box.\n\nВ клиенте выберите «Импорт из буфера обмена».")
+                    .setPositiveButton("Понятно", null)
+                    .show()
+            } catch (e: Exception) {
+                showErrorDialog(e.localizedMessage ?: "Ошибка создания Base64")
+            }
+        }
+    }
+
+    private fun exportClash(share: Boolean) {
+        val link = getValidatedLink() ?: return
+        lifecycleScope.launch {
+            try {
+                val nodes = withContext(Dispatchers.IO) { configGenerator.parseNodes(link) }
+                val yaml = configGenerator.generateClashYaml(nodes)
+
+                if (share) {
+                    shareText("Поделиться Clash YAML конфигурацией", yaml)
+                } else {
+                    copyToClipboard("Clash Config", yaml)
+                    MaterialAlertDialogBuilder(this@MainActivity)
+                        .setTitle("✅ Clash YAML скопирован!")
+                        .setMessage("Сгенерирован профиль Clash/Mihomo для узлов: ${nodes.size} с правилами fake-ip, TUN и прямым обходом доменов .RU / российских сервисов.\n\nПоддерживаемые клиенты:\n• Flclash (Android)\n• Clash Meta for Android (CMFA)\n• Clash MI\n\nВ клиенте откройте Profiles ➔ [+] ➔ Import from Clipboard.")
+                        .setPositiveButton("Понятно", null)
+                        .show()
+                }
+            } catch (e: Exception) {
+                showErrorDialog(e.localizedMessage ?: "Ошибка формирования Clash YAML")
+            }
+        }
+    }
+
+    private fun showClientsHelpDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Поддерживаемые клиенты на Android")
+            .setMessage(
+                "1. 📱 Sing-box Core (Hiddify, NekoBox, Karing, Throne):\n" +
+                "Формат: Sing-box JSON.\n" +
+                "Плюсы: Автоматически применяет выбранный список приложений (Direct) прямо из конфига.\n\n" +
+                "2. 🚀 Xray Core (v2rayNG, v2rayTun, Incy, Happ):\n" +
+                "Формат: Прямые vless:// ссылки или Base64 подписка.\n" +
+                "Особенность: v2rayNG НЕ принимает Sing-box JSON! Обход приложений в v2rayNG включается вручную: Настройки ➔ «Раздельное туннелирование».\n\n" +
+                "3. 🐱 Clash / Mihomo Core (Flclash, Clash Meta):\n" +
+                "Формат: Clash YAML.\n" +
+                "Особенность: Импортируется в профили Flclash на телефоне.\n\n" +
+                "❌ AmneziaVPN: Использует закрытый формат AWG, сторонние конфиги не принимает."
+            )
+            .setPositiveButton("Понятно", null)
+            .show()
+    }
+
+    private fun showErrorDialog(message: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Ошибка")
+            .setMessage(message)
+            .setPositiveButton("OK", null)
+            .show()
     }
 }
