@@ -25,6 +25,15 @@ from pc_generator import (
     parse_any_source, parse_vless_link, generate_clash_yaml,
     deploy_to_clash_verge, get_clash_verge_paths
 )
+
+def resource_path(relative_path: str) -> str:
+    """Get absolute path to resource, works for dev and for PyInstaller"""
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(os.path.dirname(__file__))
+    return os.path.join(base_path, relative_path)
+
 from mobile_generator import (
     build_vless_uri, build_all_uris, generate_base64_subscription,
     generate_singbox_json, generate_qr_image
@@ -293,6 +302,13 @@ class MainWindow(QMainWindow):
         self.detected_games: List[Dict[str, str]] = []
         self.category_checkboxes: Dict[str, QCheckBox] = {}
 
+        # Set Window Icon
+        icon_path = resource_path("icon.ico")
+        if not os.path.exists(icon_path):
+            icon_path = resource_path("icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self._build_ui()
         self._start_scan()
         self._start_update_check(manual=False)
@@ -483,6 +499,47 @@ class MainWindow(QMainWindow):
         btn_row.addWidget(btn_view_preview)
         ac_layout.addLayout(btn_row)
         layout.addWidget(action_card)
+
+        # Instruction & Path Helper Box
+        guide_box = QGroupBox("📖 Пошаговая инструкция: как добавить профиль в Clash Verge")
+        g_layout = QVBoxLayout(guide_box)
+        g_layout.setSpacing(10)
+
+        steps_text = QLabel(
+            "<b>Если Clash Verge запущен и карточка не появилась автоматически:</b><br>"
+            "1. В Clash Verge откройте вкладку <b>«Профили»</b> слева.<br>"
+            "2. Вверху нажмите <b>«+ Новый»</b> (или «Импорт») → выберите <b>«Локальный» (Local)</b>.<br>"
+            "3. Нажмите <b>«Выбрать файл»</b> (Browse) и выберите созданный файл <code>smart_split_tunnel.yaml</code>.<br>"
+            "4. Нажмите <b>«Сохранить»</b> — карточка появится в списке, нажмите на неё для активации!"
+        )
+        steps_text.setWordWrap(True)
+        steps_text.setStyleSheet("color: #cbd5e1; line-height: 140%;")
+        g_layout.addWidget(steps_text)
+
+        path_card = QWidget()
+        path_layout = QHBoxLayout(path_card)
+        path_layout.setContentsMargins(0, 0, 0, 0)
+        path_layout.setSpacing(8)
+
+        self.profiles_path_input = QLineEdit()
+        _, p_dir = get_clash_verge_paths()
+        p_dir_str = str(p_dir) if p_dir else os.path.expandvars(r"%APPDATA%\io.github.clash-verge-rev.clash-verge-rev\profiles")
+        self.profiles_path_input.setText(p_dir_str)
+        self.profiles_path_input.setReadOnly(True)
+        self.profiles_path_input.setStyleSheet("background-color: #0d1117; color: #38bdf8; font-family: Consolas, monospace; font-size: 12px; padding: 6px 10px;")
+
+        btn_copy_path = QPushButton("📋 Скопировать путь к профилям")
+        btn_copy_path.clicked.connect(self._copy_profiles_path)
+
+        btn_open_folder = QPushButton("📂 Открыть папку профилей")
+        btn_open_folder.clicked.connect(self._open_profiles_folder)
+
+        path_layout.addWidget(self.profiles_path_input, 1)
+        path_layout.addWidget(btn_copy_path)
+        path_layout.addWidget(btn_open_folder)
+        g_layout.addWidget(path_card)
+
+        layout.addWidget(guide_box)
 
         # YAML Preview text
         self.yaml_preview = QTextEdit()
@@ -1001,8 +1058,45 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Успех", f"Base64 подписка ({len(nodes)} серверов) сохранена:\n{path}")
 
 
+    def _copy_profiles_path(self):
+        path = self.profiles_path_input.text().strip()
+        QApplication.clipboard().setText(path)
+        QMessageBox.information(self, "Скопировано", f"Путь к папке профилей скопирован в буфер обмена:\n{path}")
+
+    def _open_profiles_folder(self):
+        path = self.profiles_path_input.text().strip()
+        if os.path.exists(path):
+            os.startfile(path)
+        else:
+            # Try to create or open parent AppData dir
+            parent = Path(path).parent
+            if parent.exists():
+                os.startfile(str(parent))
+            else:
+                QMessageBox.warning(self, "Внимание", f"Папка пока не существует:\n{path}\nСначала нажмите «Применить настройки» или создайте её.")
+
+
 if __name__ == "__main__":
+    # Windows Taskbar Icon Fix (Set AppUserModelID)
+    try:
+        import ctypes
+        myappid = 'smartvpn.wizard.client.v1'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except Exception:
+        pass
+
     app = QApplication(sys.argv)
+
+    # Set Application Icon
+    icon_path = resource_path("icon.ico")
+    if not os.path.exists(icon_path):
+        icon_path = resource_path("icon.png")
+    if os.path.exists(icon_path):
+        app_icon = QIcon(icon_path)
+        app.setWindowIcon(app_icon)
+
     window = MainWindow()
+    if os.path.exists(icon_path):
+        window.setWindowIcon(QIcon(icon_path))
     window.show()
     sys.exit(app.exec())
