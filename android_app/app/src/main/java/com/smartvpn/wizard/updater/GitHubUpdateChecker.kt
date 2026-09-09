@@ -294,12 +294,17 @@ class GitHubUpdateChecker(
         }
     }
 
+    companion object {
+        var pendingApk: File? = null
+    }
+
     fun promptInstall(apkFile: File) {
         if (!apkFile.exists()) return
 
         // For Android 8.0 (API 26) and above, check if unknown sources permission is granted
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (!context.packageManager.canRequestPackageInstalls()) {
+                pendingApk = apkFile
                 val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
                     data = Uri.parse("package:${context.packageName}")
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -7,16 +7,18 @@ import urllib.error
 from io import BytesIO
 from pathlib import Path
 from typing import List, Dict
+import subprocess
+import tempfile
 from datetime import datetime, timedelta
 
-from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer
+from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer, QUrl
 from PySide6.QtGui import QIcon, QPixmap, QImage, QFont, QColor, QDesktopServices
-from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QTabWidget, QTableWidget,
     QTableWidgetItem, QHeaderView, QCheckBox, QGroupBox, QMessageBox,
-    QFileDialog, QScrollArea, QFrame, QTextEdit, QSplitter, QComboBox
+    QFileDialog, QScrollArea, QFrame, QTextEdit, QSplitter, QComboBox,
+    QProgressBar, QDialog
 )
 
 from scanner import scan_all_games
@@ -244,7 +246,7 @@ QComboBox QAbstractItemView {
 """
 
 
-APP_VERSION = "1.2.6"
+APP_VERSION = "1.2.7"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 
@@ -325,6 +327,206 @@ class UpdateCheckerThread(QThread):
         return r_parts > c_parts
 
 
+class UpdateDownloaderThread(QThread):
+    progress = Signal(int, int, int)      # percentage, downloaded_bytes, total_bytes
+    finished = Signal(str)                # temp_file_path
+    error = Signal(str)                   # error_message
+
+    def __init__(self, download_url: str):
+        super().__init__()
+        self.download_url = download_url
+        self._is_cancelled = False
+
+    def cancel(self):
+        self._is_cancelled = True
+
+    def run(self):
+        try:
+            req = urllib.request.Request(
+                self.download_url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            )
+            temp_dir = tempfile.gettempdir()
+            dest_file = os.path.join(temp_dir, "SmartVPNWizard_update.exe")
+
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                total_length = resp.headers.get('content-length')
+                total_bytes = int(total_length) if total_length else 0
+                downloaded = 0
+                chunk_size = 65536
+
+                with open(dest_file, 'wb') as f:
+                    while True:
+                        if self._is_cancelled:
+                            return
+                        chunk = resp.read(chunk_size)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        pct = int((downloaded / total_bytes * 100)) if total_bytes > 0 else 0
+                        self.progress.emit(pct, downloaded, total_bytes)
+
+            if downloaded < 1024 * 1024:
+                self.error.emit("Загруженный файл слишком мал или повреждён.")
+                return
+
+            with open(dest_file, 'rb') as f:
+                header = f.read(2)
+                if header != b'MZ':
+                    self.error.emit("Загруженный файл не является исполняемым файлом Windows.")
+                    return
+
+            self.finished.emit(dest_file)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+class UpdateProgressDialog(QDialog):
+    def __init__(self, parent, tag: str, download_url: str):
+        super().__init__(parent)
+        self.tag = tag
+        self.download_url = download_url
+        self.setWindowTitle(f"Обновление Auto-configVPN до v{tag}")
+        self.resize(460, 180)
+        self.setModal(True)
+        self.setStyleSheet(MODERN_DARK_QSS)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(14)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        self.lbl_title = QLabel(f"<b>Загрузка обновления v{tag}</b>")
+        self.lbl_title.setStyleSheet("font-size: 15px; color: #60a5fa;")
+        layout.addWidget(self.lbl_title)
+
+        self.lbl_status = QLabel("Подключение к серверу...")
+        self.lbl_status.setStyleSheet("color: #94a3b8; font-size: 12px;")
+        layout.addWidget(self.lbl_status)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #334155;
+                border-radius: 6px;
+                text-align: center;
+                color: #ffffff;
+                background-color: #0f172a;
+                height: 22px;
+            }
+            QProgressBar::chunk {
+                background-color: #2563eb;
+                border-radius: 5px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
+
+        self.btn_cancel = QPushButton("Отмена")
+        self.btn_cancel.setStyleSheet("""
+            QPushButton {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 6px;
+                padding: 8px 16px;
+                color: #94a3b8;
+            }
+            QPushButton:hover {
+                color: #f8fafc;
+                border-color: #ef4444;
+            }
+        """)
+        self.btn_cancel.clicked.connect(self._on_cancel)
+        layout.addWidget(self.btn_cancel, alignment=Qt.AlignRight)
+
+        self.downloader = UpdateDownloaderThread(download_url)
+        self.downloader.progress.connect(self._on_progress)
+        self.downloader.finished.connect(self._on_finished)
+        self.downloader.error.connect(self._on_error)
+        self.downloader.start()
+
+    def _on_progress(self, pct: int, downloaded: int, total: int):
+        self.progress_bar.setValue(pct)
+        mb_down = downloaded / (1024 * 1024)
+        mb_tot = total / (1024 * 1024)
+        if total > 0:
+            self.lbl_status.setText(f"Загрузка: {mb_down:.1f} MB из {mb_tot:.1f} MB ({pct}%)")
+        else:
+            self.lbl_status.setText(f"Загрузка: {mb_down:.1f} MB...")
+
+    def _on_finished(self, temp_exe: str):
+        self.lbl_status.setText("Установка обновления и перезапуск...")
+        self.progress_bar.setValue(100)
+        self._apply_update(temp_exe)
+
+    def _on_error(self, err: str):
+        QMessageBox.critical(
+            self,
+            "Ошибка обновления",
+            f"Не удалось загрузить обновление:\n{err}\n\nВы можете скачать обновление вручную с GitHub."
+        )
+        self.reject()
+
+    def _on_cancel(self):
+        self.downloader.cancel()
+        self.reject()
+
+    def _apply_update(self, temp_exe: str):
+        is_frozen = getattr(sys, 'frozen', False)
+        current_exe = os.path.abspath(sys.executable)
+
+        if not is_frozen:
+            QMessageBox.information(
+                self,
+                "Обновление загружено",
+                f"Обновление успешно скачано в:\n{temp_exe}\n\n"
+                "Так как приложение запущено из исходного кода (python.exe), "
+                "автоматическая замена исполняемого файла отключена."
+            )
+            self.accept()
+            return
+
+        # Prepare self-update script via PowerShell
+        ps_script = os.path.join(tempfile.gettempdir(), "smartvpn_self_update.ps1")
+        ps_code = f"""# SmartVPN Self-Updater
+Start-Sleep -Milliseconds 1200
+$target = "{current_exe}"
+$source = "{temp_exe}"
+$retries = 30
+while ($retries -gt 0) {{
+    try {{
+        if (Test-Path -LiteralPath $target) {{
+            Remove-Item -LiteralPath $target -Force -ErrorAction Stop
+        }}
+        break
+    }} catch {{
+        Start-Sleep -Milliseconds 500
+        $retries--
+    }}
+}}
+Move-Item -LiteralPath $source -Destination $target -Force
+Start-Process -FilePath $target
+Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+"""
+        try:
+            with open(ps_script, "w", encoding="utf-8-sig") as f:
+                f.write(ps_code)
+
+            subprocess.Popen(
+                ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps_script],
+                creationflags=0x08000000 | 0x00000008  # CREATE_NO_WINDOW | DETACHED_PROCESS
+            )
+            QApplication.instance().quit()
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Ошибка установки",
+                f"Не удалось запустить скрипт обновления:\n{e}\n\nФайл сохранён в: {temp_exe}"
+            )
+            self.reject()
+
+
 class ScannerThread(QThread):
     finished = Signal(list)
 
@@ -386,13 +588,18 @@ class MainWindow(QMainWindow):
     def _on_update_available(self, tag: str, body: str, download_url: str):
         msg = QMessageBox(self)
         msg.setWindowTitle("Доступно обновление Auto-configVPN")
-        msg.setText(f"<b>Вышло обновление v{tag}!</b><br><br>Текущая версия: v{APP_VERSION}")
-        msg.setInformativeText(f"Что нового:\n{body[:400] if body else 'Оптимизации маршрутизации и исправления'}")
-        btn_update = msg.addButton("Скачать обновление", QMessageBox.AcceptRole)
+        msg.setText(f"<b>Вышла новая версия v{tag}!</b><br><br>Текущая версия: v{APP_VERSION}")
+        msg.setInformativeText(f"Что нового:\n{body[:400] if body else 'Оптимизации маршрутизации и повышение стабильности'}")
+        btn_auto = msg.addButton("⚡ Обновить автоматически", QMessageBox.AcceptRole)
+        btn_manual = msg.addButton("🌐 Скачать в браузере", QMessageBox.ActionRole)
         msg.addButton("Позже", QMessageBox.RejectRole)
+        msg.setDefaultButton(btn_auto)
         msg.exec()
 
-        if msg.clickedButton() == btn_update:
+        if msg.clickedButton() == btn_auto:
+            dlg = UpdateProgressDialog(self, tag, download_url)
+            dlg.exec()
+        elif msg.clickedButton() == btn_manual:
             QDesktopServices.openUrl(QUrl(download_url))
 
     def _on_manual_check_finished(self, found: bool, message: str):
