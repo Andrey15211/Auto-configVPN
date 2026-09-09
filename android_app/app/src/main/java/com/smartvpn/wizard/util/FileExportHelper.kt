@@ -30,7 +30,7 @@ object FileExportHelper {
                 val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
                     ?: return Pair(false, "Не удалось создать файл через MediaStore")
 
-                resolver.openOutputStream(uri, "wt")?.use { stream ->
+                resolver.openOutputStream(uri)?.use { stream ->
                     stream.write(content.toByteArray(Charsets.UTF_8))
                     stream.flush()
                 } ?: return Pair(false, "Не удалось открыть поток записи")
