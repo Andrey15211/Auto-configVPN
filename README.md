@@ -1,115 +1,97 @@
-# 🚀 Smart Split-Tunneling Wizard (PC & Android)
+# 🚀 Smart Split-Tunneling Wizard (Universal Edition)
 
-Универсальный комплекс раздельного туннелирования (Smart Split-Tunneling) для **Windows** и **Android**.
+Универсальный конфигуратор раздельного туннелирования (Smart Split-Tunneling) для **Windows**, **Android** и **iOS**.
 
-Приложение автоматически решает главную проблему современных VPN: **игры, банки, Госуслуги и российские сервисы работают напрямую с минимальным пингом и без блокировок, а заблокированные ресурсы и соцсети идут через быстрый VLESS Reality прокси.**
+Приложение решает главную проблему пользователей VPN: **игры, банки, Госуслуги и российские сервисы работают напрямую с минимальным родным пингом и без блокировок, а заблокированные ресурсы (Discord, YouTube, Instagram, зарубежные сервисы) автоматически идут через быстрый прокси.**
+
+Поддерживает все 3 ключевых стандарта современных прокси-ядер: **Mihomo (Clash Meta)**, **Sing-box** и **Xray / V2Ray**.
 
 ---
 
-## 🌟 Основные возможности
+## 📱 Поддерживаемые приложения (12 клиентов)
 
-### 💻 1. Версия для Windows (`SmartVPNWizard.exe`)
+| Клиент | Платформы | Базовое ядро | Формат в мастере | Как использовать |
+| :--- | :--- | :--- | :--- | :--- |
+| **Clash Verge Rev** | Windows / Mac / Linux | **Mihomo (Clash Meta)** | **Clash YAML** | Деплой в 1 клик или импорт локального `.yaml` |
+| **FlClash** | Win / Android / iOS / Mac | **Mihomo (Clash Meta)** | **Clash YAML** | Сохранить `.yaml` → импорт в приложении |
+| **Hiddify** | Win / Android / iOS / Mac | **Sing-box** | **Sing-box JSON** / QR | Сохранить `.json` или навести камеру на QR |
+| **Throne** | Win / Android / Mac / Linux | **Sing-box** | **Sing-box JSON** | Импорт `.json` конфигурации в приложении |
+| **NekoBox** | Android | **Sing-box** | **Sing-box JSON** / QR | Сканировать QR или импортировать JSON |
+| **NekoRay** | Windows / Linux | **Sing-box / Xray** | **Sing-box JSON** / Ссылки | Импорт JSON или вставка списка серверов |
+| **Happ** | iOS / Android | **Xray / Sing-box** | **Ссылки / QR** | Сканировать QR или вставить `vless://` |
+| **v2rayNG** | Android | **Xray-core** | **Ссылки / QR / Base64** | Сканировать QR или вставить список ссылок |
+| **v2raytun** | iOS / Android | **Xray-core** | **Ссылки / QR** | Сканировать QR или импортировать из буфера |
+| **Incy (INCY-Proxy)** | Android / iOS | **Xray-core** | **Ссылки / QR** | Вставить `vless://` / список серверов |
+| **v2rayN** | Windows | **Xray-core** | **Ссылки / Base64** | Вставить список серверов или импорт подписки |
+| **AmneziaVPN** | Win / Android / iOS / Mac | **Amnezia Core** | **VLESS ссылка** | Копировать ссылку `vless://` в буфер |
+
+---
+
+## 🌟 Возможности программы
+
+### 1. 🖥️ Вкладка «Clash / FlClash (YAML)»
+* **Формат:** `Mihomo (Clash Meta) YAML`.
+* **Автоматический деплой в Clash Verge:** применение настроек в один клик.
+* **Экспорт `.yaml`:** готовый файл профиля с полным набором правил для Clash Verge Rev, FlClash и Clash Meta.
+* **Игровой обход:** правила `PROCESS-NAME` для всех обнаруженных игр и лаунчеров направляют трафик в `DIRECT`.
+* **TUN Режим:** преднастроенный стек `gvisor`, перехват системного DNS (`dns-hijack: any:53`), исключение прямых IP серверов.
+
+### 2. ⚡ Вкладка «Sing-box (Hiddify / Throne / NekoBox)»
+* **Формат:** официальная спецификация `Sing-box 1.10+ JSON`.
+* **Мультисерверный селектор:** если вставлена подписка на 50+ серверов, генерируется переключатель (`selector`) со всеми узлами.
+* **Кроссплатформенный игровой обход:** правила `process_name` для игр на ПК и `package_name` для Android-банкинга.
+* **Экспорт в 1 клик:** сохранение `.json` файла или копирование в буфер для вставки в Hiddify / Throne.
+
+### 3. 📱 Вкладка «Ссылки и QR (Happ / v2rayNG / Incy)»
+* **Динамический QR-код:** мгновенное сканирование камерой смартфона в любом клиенте.
+* **Копирование активной ссылки:** VLESS Reality / Hysteria2.
+* **Пакетное копирование:** копирование всех серверов из подписки списком (для функции «Импорт из буфера обмена»).
+* **Экспорт Base64-подписки:** формирование стандартного файла подписки `subscription.txt`.
+
+### 4. 🎮 Вкладка «Игры в DIRECT»
 * **Автоматическое сканирование установленных игр:**
-  * Интеграция с библиотеками **Steam** (парсинг `appmanifest_*.acf`).
-  * Сканирование **Battle.net, Epic Games, Riot Games, Wargaming/Lesta** и системного реестра.
-  * Все игровые процессы (например, `cs2.exe`, `dota2.exe`, `Deadlock.exe`, `Overwatch.exe`) направляются напрямую (`DIRECT`) для нулевой задержки (0ms ping overhead).
-* **Каталог российских сервисов:**
-  * Банки (Сбер, Т-Банк, ВТБ, Альфа, Райффайзен, МИР Pay).
-  * Госуслуги, Мос.ру, Налог.ру.
-  * Маркетплейсы и доставка (Ozon, Wildberries, DNS, Яндекс Маркет, Авито, Самокат).
-  * Рунет TLDs (`.ru`, `.su`, `.xn--p1ai`).
-* **Бесшовный деплой в 1 клик:**
-  * Генерация профиля для ядра **Mihomo / Clash Verge Rev** с правилами Fake-IP, TUN stack: system, sniff.
-  * Мгновенное применение профиля через IPC Named Pipe (`\\.\pipe\verge-mihomo`) без необходимости перезапуска клиента.
-* **Генерация QR-кода для смартфона:**
-  * Создание динамического QR-кода прямо в окне программы для быстрого сканирования с телефона.
+  * Интеграция со **Steam** (парсинг `appmanifest_*.acf`).
+  * Сканирование каталогов **Battle.net, Epic Games, Riot Games, Wargaming/Lesta** и реестра Windows.
+  * Ручное добавление любого `.exe` файла в один клик.
+  * Пинг в соревновательных играх (CS2, Dota 2, Valorant, Apex, Overwatch) остаётся чистым и минимальным (напрямую к серверам).
+
+### 5. 🇷🇺 Вкладка «Российские Сервисы»
+* Каталог доменов и сервисов для гарантированного прямого доступа без задержек:
+  * **Банки:** Сбер, Т-Банк, ВТБ, Альфа-Банк, Райффайзен, МИР Pay.
+  * **Государственные сервисы:** Госуслуги, Мос.ру, Налог.ру, ЕМИАС.
+  * **Маркетплейсы и доставка:** Ozon, Wildberries, DNS, Яндекс Маркет, Авито, Самокат, Купер.
+  * **Медиа и сервисы:** VK, Кинопоиск, Rutube, Яндекс, Mail.ru.
+  * **Зоны Рунета:** `.ru`, `.su`, `.xn--p1ai`.
+  * **GeoIP / GeoSite:** автоматический обход диапазона IP Российской Федерации (`GEOIP,RU,DIRECT`).
 
 ---
 
-### 📱 2. Мобильное приложение для Android (`SmartVPNWizard.apk`)
-* **Сканирование мобильных приложений:**
-  * Автоматический опрос установленных на телефоне приложений через Android `PackageManager`.
-  * «Умный» предвыбор: банковские клиенты, Госуслуги и доставка по умолчанию включены в прямой обход (Direct).
-* **Генерация Sing-box 1.10+ JSON:**
-  * Формирование профиля с правилами `package_name`, `geosite: category-ru`, `geoip: ru`.
-  * Экспорт в 1 клик в буфер обмена или через системное меню «Поделиться» для прямого импорта в **Sing-box**, **NekoBox** или **v2rayNG**.
-* **🔄 Автообновления прямо в приложении (в стиле Morphe / ReVanced Manager):**
-  * Встроенный модуль `GitHubUpdateChecker`.
-  * Приложение проверяет наличие новых версий через GitHub Releases API (`api.github.com/repos/.../releases/latest`).
-  * Отображает окно обновления со списком изменений (Changelog) и прогресс-баром загрузки.
-  * Автоматически запускает установщик APK через защищенный `FileProvider` и `REQUEST_INSTALL_PACKAGES`.
+## 🛠️ Сборка и установка
 
----
-
-## 🛠️ Структура проекта
-
+### Запуск готового приложения на Windows:
+Готовый исполняемый файл:
 ```
-vpn_config_wizard/
-├── .github/
-│   └── workflows/
-│       └── release.yml          # GitHub Actions: автосборка .exe и .apk при релизе
-├── android_app/                 # Нативный Android-проект (Kotlin + Material 3)
-│   ├── app/
-│   │   ├── src/main/java/com/smartvpn/wizard/
-│   │   │   ├── MainActivity.kt
-│   │   │   ├── updater/GitHubUpdateChecker.kt   # Morphe/ReVanced автообновления
-│   │   │   ├── scanner/AppScanner.kt            # Сканер установленных APK
-│   │   │   ├── generator/SingBoxConfigGenerator.kt
-│   │   │   ├── model/
-│   │   │   └── ui/
-│   │   └── build.gradle.kts
-│   ├── build.gradle.kts
-│   ├── settings.gradle.kts
-│   ├── gradlew
-│   └── gradlew.bat
-├── app_gui.py                   # PySide6 GUI для Windows
-├── scanner.py                   # Модуль сканирования игр на ПК
-├── catalog.py                   # Каталог доменов, процессов и пакетов Direct
-├── pc_generator.py              # Генератор Clash/Mihomo YAML + Named Pipe IPC
-├── mobile_generator.py          # Генератор Sing-box JSON + QR-генератор
-├── main.py                      # Точка входа для сборки Windows EXE
-└── README.md
+SmartVPNWizard.exe
 ```
+(Приложение не требует установки, готово к запуску из любой папки).
 
----
-
-## 📦 Сборка и запуск
-
-### Запуск на Windows:
-Готовый исполняемый файл находится в:
-```
-dist/SmartVPNWizard.exe
-```
-(Также ярлык доступен прямо на Рабочем столе: `SmartVPNWizard.exe`).
-
-Для ручной пересборки `.exe`:
+### Сборка из исходников:
 ```powershell
+git clone https://github.com/Andrey15211/Auto-configVPN.git
+cd Auto-configVPN
 pip install PySide6 PyYAML Pillow qrcode pyinstaller
-pyinstaller --clean --noconsole --onefile --name "SmartVPNWizard" main.py
+pyinstaller --noconfirm SmartVPNWizard.spec
 ```
-
-### Сборка Android APK:
-```bash
-cd android_app
-./gradlew assembleRelease
-```
-Готовый файл APK сформируется по пути:
-`android_app/app/build/outputs/apk/release/app-release.apk`.
+Исполняемый файл появится в папке `dist/SmartVPNWizard.exe`.
 
 ---
 
-## 🚀 Деплой на GitHub
+## 🔒 Безопасность и конфиденциальность
+* Приложение работает **на 100% локально** на вашем компьютере.
+* Исходный код полностью открыт.
+* Ваши ссылки на серверы, ключи Reality и подписки никуда не отправляются и обрабатываются исключительно на вашей машине.
 
-1. Удаленный репозиторий:
-   ```bash
-   git remote add origin https://github.com/Andrey15211/Auto-configVPN.git
-   git branch -M main
-   git push -u origin main
-   ```
+---
 
-2. Для автоматического выпуска релиза с готовыми файлами `.exe` и `.apk`:
-   ```bash
-   git tag v1.0.0
-   git push origin v1.0.0
-   ```
-   *GitHub Actions автоматически соберет `SmartVPNWizard.exe` и `SmartVPNWizard.apk` и прикрепит их к GitHub Release.*
+## 📄 Лицензия
+MIT License. Свободно для использования, модификации и распространения.

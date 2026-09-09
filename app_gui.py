@@ -25,7 +25,10 @@ from pc_generator import (
     parse_any_source, parse_vless_link, generate_clash_yaml,
     deploy_to_clash_verge, get_clash_verge_paths
 )
-from mobile_generator import build_vless_uri, generate_singbox_json, generate_qr_image
+from mobile_generator import (
+    build_vless_uri, build_all_uris, generate_base64_subscription,
+    generate_singbox_json, generate_qr_image
+)
 
 # Dark Theme Stylesheet
 MODERN_DARK_QSS = """
@@ -213,7 +216,7 @@ QComboBox QAbstractItemView {
 """
 
 
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 
@@ -347,7 +350,7 @@ class MainWindow(QMainWindow):
         header_layout = QHBoxLayout()
         title_label = QLabel("⚡ Smart Split-Tunneling Wizard")
         title_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #60a5fa;")
-        subtitle = QLabel("Раздельное туннелирование (ПК & Android)")
+        subtitle = QLabel("Универсальное раздельное туннелирование (Clash / Sing-box / Xray)")
         subtitle.setStyleSheet("color: #64748b; font-size: 13px;")
 
         self.btn_check_update = QPushButton("🔄 Проверить обновления")
@@ -407,25 +410,30 @@ class MainWindow(QMainWindow):
         node_layout.addWidget(self.node_info_label)
         main_layout.addWidget(node_group)
 
-        # 3. Main Tabs (ПК / Телефон / Игры / Настройки)
+        # 3. Main Tabs (Clash / Sing-box / Ссылки / Игры / Настройки)
         self.tabs = QTabWidget()
 
-        # Tab 1: PC
+        # Tab 1: Clash / FlClash (YAML)
         self.tab_pc = QWidget()
         self._build_pc_tab()
-        self.tabs.addTab(self.tab_pc, "🖥️ Для Компьютера (Clash Verge)")
+        self.tabs.addTab(self.tab_pc, "🖥️ Clash / FlClash (YAML)")
 
-        # Tab 2: Mobile
-        self.tab_mobile = QWidget()
-        self._build_mobile_tab()
-        self.tabs.addTab(self.tab_mobile, "📱 Для Телефона (Hiddify / v2rayNG)")
+        # Tab 2: Sing-box (Hiddify / Throne / NekoBox)
+        self.tab_singbox = QWidget()
+        self._build_singbox_tab()
+        self.tabs.addTab(self.tab_singbox, "⚡ Sing-box (Hiddify / Throne)")
 
-        # Tab 3: Games List
+        # Tab 3: Links & QR (Happ / v2rayNG / Incy)
+        self.tab_links = QWidget()
+        self._build_links_tab()
+        self.tabs.addTab(self.tab_links, "📱 Ссылки и QR (Happ / v2rayNG / Incy)")
+
+        # Tab 4: Games List
         self.tab_games = QWidget()
         self._build_games_tab()
         self.tabs.addTab(self.tab_games, "🎮 Игры в DIRECT (0)")
 
-        # Tab 4: Categories
+        # Tab 5: Categories
         self.tab_categories = QWidget()
         self._build_categories_tab()
         self.tabs.addTab(self.tab_categories, "🇷🇺 Российские Сервисы")
@@ -435,21 +443,21 @@ class MainWindow(QMainWindow):
         # Initial link parse
         self._on_link_changed(self.link_input.text())
 
-    # --- TAB 1: PC ---
+    # --- TAB 1: CLASH / FLCLASH ---
     def _build_pc_tab(self):
         layout = QVBoxLayout(self.tab_pc)
         layout.setSpacing(14)
 
         desc = QLabel(
-            "<b>Как это работает на ПК:</b> Все отмеченные игры (Dota 2, CS2, Overwatch и др.) и российские ресурсы "
-            "пойдут <b>напрямую (DIRECT)</b> с родным пингом 35 мс. Зарубежные сервисы (Discord, YouTube, Antigravity) "
-            "пойдут через ваш сервер в Швеции. Рекомендуемый клиент: <b>Clash Verge Rev</b> (ядро Mihomo) в режиме TUN."
+            "<b>Для клиентов:</b> <b>Clash Verge Rev</b>, <b>FlClash</b>, <b>Clash Meta</b>, <b>Clash Nyanpasu</b>.<br>"
+            "Использует формат <b>Mihomo (Clash Meta) YAML</b>. Все отмеченные игры (.exe) и сервисы РФ идут "
+            "<b>напрямую (DIRECT)</b> с минимальным пингом. Discord, YouTube и заблокированные сайты идут через прокси."
         )
         desc.setWordWrap(True)
         desc.setStyleSheet("color: #cbd5e1; line-height: 140%;")
         layout.addWidget(desc)
 
-        action_card = QGroupBox("Развёртывание в 1 клик")
+        action_card = QGroupBox("Развёртывание и экспорт для Clash / FlClash")
         ac_layout = QVBoxLayout(action_card)
         ac_layout.setSpacing(10)
 
@@ -463,11 +471,11 @@ class MainWindow(QMainWindow):
         ac_layout.addWidget(self.pc_status_label)
 
         btn_row = QHBoxLayout()
-        btn_save_file = QPushButton("💾 Сохранить .yaml файл")
+        btn_save_file = QPushButton("💾 Сохранить .yaml (Clash / FlClash)")
         btn_save_file.clicked.connect(self._save_yaml_file)
         btn_copy_yaml = QPushButton("📋 Скопировать YAML в буфер")
         btn_copy_yaml.clicked.connect(self._copy_yaml)
-        btn_view_preview = QPushButton("👁️ Показать превью конфигурации")
+        btn_view_preview = QPushButton("👁️ Превью YAML")
         btn_view_preview.clicked.connect(self._toggle_yaml_preview)
 
         btn_row.addWidget(btn_save_file)
@@ -485,54 +493,107 @@ class MainWindow(QMainWindow):
 
         layout.addStretch()
 
-    # --- TAB 2: MOBILE ---
-    def _build_mobile_tab(self):
-        layout = QHBoxLayout(self.tab_mobile)
+    # --- TAB 2: SING-BOX (HIDDIFY / THRONE / NEKOBOX / NEKORAY) ---
+    def _build_singbox_tab(self):
+        layout = QVBoxLayout(self.tab_singbox)
+        layout.setSpacing(14)
+
+        desc = QLabel(
+            "<b>Для клиентов:</b> <b>Hiddify</b> (ПК / Android / iOS), <b>Throne</b>, <b>NekoBox</b> (Android), <b>NekoRay</b> (Win/Linux).<br>"
+            "Использует официальную спецификацию <b>Sing-box 1.10+ JSON</b>. Включает мультисерверный селектор (`selector`), "
+            "прямой обход для игр на ПК (`process_name`) и обход российских мобильных приложений (`package_name`)."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color: #cbd5e1; line-height: 140%;")
+        layout.addWidget(desc)
+
+        action_card = QGroupBox("Экспорт конфигурации Sing-box")
+        ac_layout = QVBoxLayout(action_card)
+        ac_layout.setSpacing(10)
+
+        self.btn_save_singbox = QPushButton("💾 Сохранить .json файл (Sing-box / Hiddify / Throne)")
+        self.btn_save_singbox.setObjectName("btnPrimary")
+        self.btn_save_singbox.clicked.connect(self._save_singbox_file)
+        ac_layout.addWidget(self.btn_save_singbox)
+
+        self.singbox_status_label = QLabel("Статус: Готов к экспорту Sing-box JSON")
+        self.singbox_status_label.setStyleSheet("color: #94a3b8; font-weight: 500;")
+        ac_layout.addWidget(self.singbox_status_label)
+
+        btn_row = QHBoxLayout()
+        btn_copy_json = QPushButton("📋 Скопировать Sing-box JSON в буфер")
+        btn_copy_json.clicked.connect(self._copy_singbox_json)
+        btn_view_preview = QPushButton("👁️ Превью Sing-box JSON")
+        btn_view_preview.clicked.connect(self._toggle_singbox_preview)
+
+        btn_row.addWidget(btn_copy_json)
+        btn_row.addWidget(btn_view_preview)
+        ac_layout.addLayout(btn_row)
+        layout.addWidget(action_card)
+
+        # JSON Preview text
+        self.singbox_preview = QTextEdit()
+        self.singbox_preview.setReadOnly(True)
+        self.singbox_preview.setStyleSheet("font-family: Consolas, monospace; font-size: 11px; background-color: #0d1117;")
+        self.singbox_preview.setVisible(False)
+        layout.addWidget(self.singbox_preview, 1)
+
+        layout.addStretch()
+
+    # --- TAB 3: LINKS & QR (HAPP / V2RAYNG / V2RAYTUN / INCY / V2RAYN) ---
+    def _build_links_tab(self):
+        layout = QHBoxLayout(self.tab_links)
         layout.setSpacing(16)
 
-        # Left Column: QR Code
-        qr_box = QGroupBox("QR-код для импорта на смартфон")
+        # Left Column: QR Code & Quick Actions
+        qr_box = QGroupBox("QR-код и универсальные ссылки")
         qr_layout = QVBoxLayout(qr_box)
+        qr_layout.setSpacing(8)
         qr_layout.setAlignment(Qt.AlignCenter)
 
         self.qr_label = QLabel()
-        self.qr_label.setFixedSize(320, 320)
+        self.qr_label.setFixedSize(270, 270)
         self.qr_label.setStyleSheet("background-color: #ffffff; border-radius: 12px; padding: 10px;")
         self.qr_label.setAlignment(Qt.AlignCenter)
         qr_layout.addWidget(self.qr_label)
 
-        btn_copy_uri = QPushButton("📋 Скопировать VLESS ссылку")
+        btn_copy_uri = QPushButton("📋 Скопировать активную VLESS ссылку")
         btn_copy_uri.setObjectName("btnPrimary")
         btn_copy_uri.clicked.connect(self._copy_mobile_link)
         qr_layout.addWidget(btn_copy_uri)
 
+        btn_copy_all = QPushButton("📋 Скопировать ВСЕ серверы (список)")
+        btn_copy_all.clicked.connect(self._copy_all_links)
+        qr_layout.addWidget(btn_copy_all)
+
+        btn_save_b64 = QPushButton("💾 Экспорт Base64 подписки (.txt)")
+        btn_save_b64.clicked.connect(self._save_base64_file)
+        qr_layout.addWidget(btn_save_b64)
+
         layout.addWidget(qr_box)
 
         # Right Column: Instructions & Clients
-        info_box = QGroupBox("Инструкция по настройке на телефоне")
+        info_box = QGroupBox("Поддерживаемые приложения и инструкция")
         info_layout = QVBoxLayout(info_box)
         info_layout.setSpacing(10)
 
         guide_text = QLabel(
-            "<b>Рекомендуемые приложения:</b><br>"
-            "• <b>Hiddify</b> (Android / iOS) — <i>Лучший выбор!</i> Поддерживает раздельное туннелирование из коробки.<br>"
-            "• <b>v2rayNG</b> (Android) — Классический быстрый клиент.<br><br>"
-            "<b>Как подключить за 10 секунд:</b><br>"
-            "1. Установите <b>Hiddify</b> из Google Play или App Store.<br>"
-            "2. В приложении нажмите иконку <b>«+»</b> вверху справа.<br>"
-            "3. Выберите <b>«Сканировать QR-код»</b> и наведите камеру на экран слева.<br>"
-            "4. В Hiddify перейдите в Настройки → Регион маршрутизации → выберите <b>«Россия» (Bypass RU)</b>.<br>"
-            "5. Нажмите большую кнопку подключения!<br><br>"
-            "<b>Результат:</b> Сбербанк, Госуслуги, Т-Банк, Яндекс и доставка работают напрямую без замедления, "
-            "а YouTube, Instagram и Discord летают через ваш сервер."
+            "<b>Поддерживаемые клиенты:</b><br>"
+            "• <b>Happ</b> (iOS / Android) — Быстрый клиент с поддержкой VLESS Reality.<br>"
+            "• <b>v2rayNG</b> (Android) — Стандартный проверенный клиент с Per-App прокси.<br>"
+            "• <b>v2raytun</b> (iOS / Android) — Популярное решение для мобильных.<br>"
+            "• <b>Incy (INCY-Proxy)</b> (Android / iOS) — Клиент со встроенным обходом РФ-банкинга.<br>"
+            "• <b>v2rayN</b> (Windows) — Классический GUI для ПК.<br><br>"
+            "<b>Как импортировать:</b><br>"
+            "1. <b>Один сервер:</b> Откройте клиент на телефоне → «+» → <i>Сканировать QR-код</i> (наведите на экран слева).<br>"
+            "2. <b>Все серверы сразу:</b> Нажмите <i>«Скопировать ВСЕ серверы»</i> → в приложении выберите <i>«Импорт из буфера обмена»</i>.<br>"
+            "3. <b>Подписка:</b> Экспортируйте Base64 файл и загрузите как подписку.<br><br>"
+            "<b>Настройка прямого обхода (Direct):</b><br>"
+            "В настройках приложения включите <b>«Раздельное туннелирование» (Per-App Proxy)</b> или выберите правило <b>«Обход доменов РФ (Bypass RU)»</b>."
         )
         guide_text.setWordWrap(True)
         guide_text.setStyleSheet("color: #cbd5e1; line-height: 140%;")
         info_layout.addWidget(guide_text)
-
-        btn_copy_json = QPushButton("📋 Скопировать полный Sing-box JSON")
-        btn_copy_json.clicked.connect(self._copy_singbox_json)
-        info_layout.addWidget(btn_copy_json)
 
         info_layout.addStretch()
         layout.addWidget(info_box, 1)
@@ -654,6 +715,8 @@ class MainWindow(QMainWindow):
             self._update_qr()
             if self.yaml_preview.isVisible():
                 self._update_yaml_preview()
+            if self.singbox_preview.isVisible():
+                self._update_singbox_preview()
         except Exception as e:
             self.node_info_label.setText(f"⚠️ Ошибка формата ссылки: {e}")
             self.node_info_label.setStyleSheet("color: #f59e0b; font-weight: 500;")
@@ -701,7 +764,7 @@ class MainWindow(QMainWindow):
 
     def _on_scan_finished(self, games: List[Dict[str, str]]):
         self.detected_games = games
-        self.tabs.setTabText(2, f"🎮 Игры в DIRECT ({len(games)})")
+        self.tabs.setTabText(3, f"🎮 Игры в DIRECT ({len(games)})")
         self._populate_games_table(games)
 
     def _populate_games_table(self, games: List[Dict[str, str]]):
@@ -766,7 +829,7 @@ class MainWindow(QMainWindow):
                 "source": "Custom"
             }
             self.detected_games.insert(0, new_game)
-            self.tabs.setTabText(2, f"🎮 Игры в DIRECT ({len(self.detected_games)})")
+            self.tabs.setTabText(3, f"🎮 Игры в DIRECT ({len(self.detected_games)})")
             self._populate_games_table(self.detected_games)
 
     def _get_selected_game_exes(self) -> List[str]:
@@ -874,6 +937,45 @@ class MainWindow(QMainWindow):
         if vis:
             self._update_yaml_preview()
 
+    def _save_singbox_file(self):
+        nodes = self._get_nodes_for_pc()
+        if not nodes:
+            QMessageBox.warning(self, "Внимание", "Пожалуйста, введите корректный сервер или подписку.")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Сохранить конфигурацию Sing-box", "singbox_config.json", "JSON Files (*.json)")
+        if path:
+            exes = self._get_selected_game_exes()
+            cats = self._get_enabled_categories()
+            content = generate_singbox_json(nodes, enabled_categories=cats, game_exes=exes)
+            Path(path).write_text(content, encoding="utf-8")
+            self.singbox_status_label.setText(f"✅ Файл сохранён: {Path(path).name} ({len(nodes)} серверов)")
+            QMessageBox.information(self, "Успех", f"Конфигурация Sing-box сохранена ({len(nodes)} серверов, {len(exes)} игр в DIRECT):\n{path}")
+
+    def _copy_singbox_json(self):
+        nodes = self._get_nodes_for_pc()
+        if not nodes:
+            return
+        exes = self._get_selected_game_exes()
+        cats = self._get_enabled_categories()
+        content = generate_singbox_json(nodes, enabled_categories=cats, game_exes=exes)
+        QApplication.clipboard().setText(content)
+        QMessageBox.information(self, "Скопировано", f"Sing-box JSON ({len(nodes)} серверов) скопирован в буфер обмена!")
+
+    def _update_singbox_preview(self):
+        nodes = self._get_nodes_for_pc()
+        if not nodes:
+            return
+        exes = self._get_selected_game_exes()
+        cats = self._get_enabled_categories()
+        content = generate_singbox_json(nodes, enabled_categories=cats, game_exes=exes)
+        self.singbox_preview.setText(content)
+
+    def _toggle_singbox_preview(self):
+        vis = not self.singbox_preview.isVisible()
+        self.singbox_preview.setVisible(vis)
+        if vis:
+            self._update_singbox_preview()
+
     def _copy_mobile_link(self):
         if not self.current_node:
             return
@@ -881,13 +983,22 @@ class MainWindow(QMainWindow):
         QApplication.clipboard().setText(uri)
         QMessageBox.information(self, "Скопировано", "VLESS-ссылка скопирована в буфер обмена!")
 
-    def _copy_singbox_json(self):
-        if not self.current_node:
+    def _copy_all_links(self):
+        nodes = self._get_nodes_for_pc()
+        if not nodes:
             return
-        cats = self._get_enabled_categories()
-        content = generate_singbox_json(self.current_node, cats)
-        QApplication.clipboard().setText(content)
-        QMessageBox.information(self, "Скопировано", "Sing-box JSON скопирован в буфер обмена!")
+        all_uris = build_all_uris(nodes)
+        QApplication.clipboard().setText(all_uris)
+        QMessageBox.information(self, "Скопировано", f"Список из {len(nodes)} серверов скопирован в буфер обмена!")
+
+    def _save_base64_file(self):
+        nodes = self._get_nodes_for_pc()
+        if not nodes:
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Сохранить Base64 подписку", "subscription.txt", "Text Files (*.txt)")
+        if path:
+            b64 = generate_base64_subscription(nodes)
+            QMessageBox.information(self, "Успех", f"Base64 подписка ({len(nodes)} серверов) сохранена:\n{path}")
 
 
 if __name__ == "__main__":
