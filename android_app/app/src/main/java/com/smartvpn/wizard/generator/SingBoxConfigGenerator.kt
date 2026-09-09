@@ -114,7 +114,11 @@ class SingBoxConfigGenerator {
             ),
             "rules" to listOf(
                 mapOf("outbound" to "any", "server" to "local-dns"),
-                mapOf("geosite" to listOf("category-ru", "gov-ru"), "server" to "local-dns")
+                mapOf(
+                    "domain_suffix" to listOf(".ru", ".su", ".xn--p1ai", "yandex.ru", "yandex.net", "vk.com", "vk.ru", "mail.ru", "gosuslugi.ru", "ozon.ru", "wildberries.ru", "sberbank.ru", "tbank.ru", "tinkoff.ru", "avito.ru", "kinopoisk.ru"),
+                    "server" to "local-dns"
+                ),
+                mapOf("geosite" to listOf("category-ru"), "server" to "local-dns")
             )
         )
 
@@ -167,7 +171,11 @@ class SingBoxConfigGenerator {
             ))
         }
 
-        rules.add(mapOf("geosite" to listOf("category-ru", "gov-ru"), "outbound" to "direct"))
+        rules.add(mapOf(
+            "domain_suffix" to listOf(".ru", ".su", ".xn--p1ai", "yandex.ru", "yandex.net", "vk.com", "vk.ru", "mail.ru", "gosuslugi.ru", "ozon.ru", "wildberries.ru", "sberbank.ru", "tbank.ru", "tinkoff.ru", "avito.ru", "kinopoisk.ru"),
+            "outbound" to "direct"
+        ))
+        rules.add(mapOf("geosite" to listOf("category-ru"), "outbound" to "direct"))
         rules.add(mapOf("geoip" to listOf("ru", "private"), "outbound" to "direct"))
 
         root["route"] = mapOf(
@@ -271,10 +279,46 @@ class SingBoxConfigGenerator {
         }
 
         sb.append("\nrules:\n")
-        sb.append("  - GEOSITE,category-ru,DIRECT\n")
-        sb.append("  - GEOSITE,gov-ru,DIRECT\n")
-        sb.append("  - GEOIP,RU,DIRECT\n")
-        sb.append("  - GEOIP,private,DIRECT\n")
+        // Russian TLDs
+        sb.append("  - DOMAIN-SUFFIX,ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,su,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,xn--p1ai,DIRECT\n")
+        // Major Russian Services & Infrastructure
+        sb.append("  - DOMAIN-SUFFIX,yandex.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,yandex.net,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,ya.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,vk.com,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,vk.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,mail.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,ok.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,gosuslugi.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,sberbank.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,sber.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,tinkoff.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,tbank.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,alfabank.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,vtb.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,ozon.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,wildberries.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,avito.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,kinopoisk.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,rutube.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,dzen.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,2gis.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,mos.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,spb.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,nalog.gov.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,cbr.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,hh.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,auto.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,kp.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,rbc.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,ria.ru,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,tass.ru,DIRECT\n")
+        // Russian IPs & Private Networks
+        sb.append("  - GEOIP,RU,DIRECT,no-resolve\n")
+        sb.append("  - GEOIP,private,DIRECT,no-resolve\n")
+        // Everything else -> PROXY
         sb.append("  - MATCH,PROXY\n")
 
         return sb.toString()
