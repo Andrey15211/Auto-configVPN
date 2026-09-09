@@ -34,6 +34,25 @@ def resource_path(relative_path: str) -> str:
         base_path = os.path.abspath(os.path.dirname(__file__))
     return os.path.join(base_path, relative_path)
 
+
+def safe_copy_to_clipboard(text: str) -> bool:
+    """Safely copy text to clipboard without freezing UI or deadlocking on Windows hooks."""
+    try:
+        cb = QApplication.clipboard()
+        if cb:
+            cb.setText(text)
+            return True
+    except Exception:
+        pass
+    try:
+        import subprocess
+        p = subprocess.Popen(["clip"], stdin=subprocess.PIPE, shell=True)
+        p.communicate(input=text.encode("utf-16le"), timeout=2)
+        return True
+    except Exception:
+        pass
+    return False
+
 from mobile_generator import (
     build_vless_uri, build_all_uris, generate_base64_subscription,
     generate_singbox_json, generate_qr_image
@@ -489,13 +508,13 @@ class MainWindow(QMainWindow):
         btn_row = QHBoxLayout()
         btn_save_file = QPushButton("💾 Сохранить .yaml (Clash / FlClash)")
         btn_save_file.clicked.connect(self._save_yaml_file)
-        btn_copy_yaml = QPushButton("📋 Скопировать YAML в буфер")
-        btn_copy_yaml.clicked.connect(self._copy_yaml)
+        self.btn_copy_yaml = QPushButton("📋 Скопировать YAML в буфер")
+        self.btn_copy_yaml.clicked.connect(self._copy_yaml)
         btn_view_preview = QPushButton("👁️ Превью YAML")
         btn_view_preview.clicked.connect(self._toggle_yaml_preview)
 
         btn_row.addWidget(btn_save_file)
-        btn_row.addWidget(btn_copy_yaml)
+        btn_row.addWidget(self.btn_copy_yaml)
         btn_row.addWidget(btn_view_preview)
         ac_layout.addLayout(btn_row)
         layout.addWidget(action_card)
@@ -528,14 +547,14 @@ class MainWindow(QMainWindow):
         self.profiles_path_input.setReadOnly(True)
         self.profiles_path_input.setStyleSheet("background-color: #0d1117; color: #38bdf8; font-family: Consolas, monospace; font-size: 12px; padding: 6px 10px;")
 
-        btn_copy_path = QPushButton("📋 Скопировать путь к профилям")
-        btn_copy_path.clicked.connect(self._copy_profiles_path)
+        self.btn_copy_path = QPushButton("📋 Скопировать путь к профилям")
+        self.btn_copy_path.clicked.connect(self._copy_profiles_path)
 
         btn_open_folder = QPushButton("📂 Открыть папку профилей")
         btn_open_folder.clicked.connect(self._open_profiles_folder)
 
         path_layout.addWidget(self.profiles_path_input, 1)
-        path_layout.addWidget(btn_copy_path)
+        path_layout.addWidget(self.btn_copy_path)
         path_layout.addWidget(btn_open_folder)
         g_layout.addWidget(path_card)
 
@@ -577,13 +596,12 @@ class MainWindow(QMainWindow):
         self.singbox_status_label.setStyleSheet("color: #94a3b8; font-weight: 500;")
         ac_layout.addWidget(self.singbox_status_label)
 
-        btn_row = QHBoxLayout()
-        btn_copy_json = QPushButton("📋 Скопировать Sing-box JSON в буфер")
-        btn_copy_json.clicked.connect(self._copy_singbox_json)
+        self.btn_copy_singbox = QPushButton("📋 Скопировать Sing-box JSON в буфер")
+        self.btn_copy_singbox.clicked.connect(self._copy_singbox_json)
         btn_view_preview = QPushButton("👁️ Превью Sing-box JSON")
         btn_view_preview.clicked.connect(self._toggle_singbox_preview)
 
-        btn_row.addWidget(btn_copy_json)
+        btn_row.addWidget(self.btn_copy_singbox)
         btn_row.addWidget(btn_view_preview)
         ac_layout.addLayout(btn_row)
         layout.addWidget(action_card)
@@ -614,14 +632,14 @@ class MainWindow(QMainWindow):
         self.qr_label.setAlignment(Qt.AlignCenter)
         qr_layout.addWidget(self.qr_label)
 
-        btn_copy_uri = QPushButton("📋 Скопировать активную VLESS ссылку")
-        btn_copy_uri.setObjectName("btnPrimary")
-        btn_copy_uri.clicked.connect(self._copy_mobile_link)
-        qr_layout.addWidget(btn_copy_uri)
+        self.btn_copy_uri = QPushButton("📋 Скопировать активную VLESS ссылку")
+        self.btn_copy_uri.setObjectName("btnPrimary")
+        self.btn_copy_uri.clicked.connect(self._copy_mobile_link)
+        qr_layout.addWidget(self.btn_copy_uri)
 
-        btn_copy_all = QPushButton("📋 Скопировать ВСЕ серверы (список)")
-        btn_copy_all.clicked.connect(self._copy_all_links)
-        qr_layout.addWidget(btn_copy_all)
+        self.btn_copy_all_links = QPushButton("📋 Скопировать ВСЕ серверы (список)")
+        self.btn_copy_all_links.clicked.connect(self._copy_all_links)
+        qr_layout.addWidget(self.btn_copy_all_links)
 
         btn_save_b64 = QPushButton("💾 Экспорт Base64 подписки (.txt)")
         btn_save_b64.clicked.connect(self._save_base64_file)
@@ -969,6 +987,13 @@ class MainWindow(QMainWindow):
             Path(path).write_text(content, encoding="utf-8")
             QMessageBox.information(self, "Успех", f"Файл сохранён ({len(nodes)} серверов):\n{path}")
 
+    def _reset_btn(self, btn: QPushButton, original_text: str):
+        try:
+            btn.setText(original_text)
+            btn.setStyleSheet("")
+        except Exception:
+            pass
+
     def _copy_yaml(self):
         nodes = self._get_nodes_for_pc()
         if not nodes:
@@ -976,8 +1001,10 @@ class MainWindow(QMainWindow):
         exes = self._get_selected_game_exes()
         cats = self._get_enabled_categories()
         content = generate_clash_yaml(nodes, exes, cats)
-        QApplication.clipboard().setText(content)
-        QMessageBox.information(self, "Скопировано", f"YAML-профиль ({len(nodes)} серверов) скопирован в буфер обмена!")
+        safe_copy_to_clipboard(content)
+        self.btn_copy_yaml.setText(f"✅ Скопировано ({len(nodes)} серв.)!")
+        self.btn_copy_yaml.setStyleSheet("background-color: #059669; color: white; font-weight: bold;")
+        QTimer.singleShot(2500, lambda: self._reset_btn(self.btn_copy_yaml, "📋 Скопировать YAML в буфер"))
 
     def _update_yaml_preview(self):
         nodes = self._get_nodes_for_pc()
@@ -1015,8 +1042,10 @@ class MainWindow(QMainWindow):
         exes = self._get_selected_game_exes()
         cats = self._get_enabled_categories()
         content = generate_singbox_json(nodes, enabled_categories=cats, game_exes=exes)
-        QApplication.clipboard().setText(content)
-        QMessageBox.information(self, "Скопировано", f"Sing-box JSON ({len(nodes)} серверов) скопирован в буфер обмена!")
+        safe_copy_to_clipboard(content)
+        self.btn_copy_singbox.setText(f"✅ Скопировано ({len(nodes)} серв.)!")
+        self.btn_copy_singbox.setStyleSheet("background-color: #059669; color: white; font-weight: bold;")
+        QTimer.singleShot(2500, lambda: self._reset_btn(self.btn_copy_singbox, "📋 Скопировать Sing-box JSON в буфер"))
 
     def _update_singbox_preview(self):
         nodes = self._get_nodes_for_pc()
@@ -1037,16 +1066,20 @@ class MainWindow(QMainWindow):
         if not self.current_node:
             return
         uri = build_vless_uri(self.current_node)
-        QApplication.clipboard().setText(uri)
-        QMessageBox.information(self, "Скопировано", "VLESS-ссылка скопирована в буфер обмена!")
+        safe_copy_to_clipboard(uri)
+        self.btn_copy_uri.setText("✅ VLESS ссылка скопирована!")
+        self.btn_copy_uri.setStyleSheet("background-color: #059669; color: white; font-weight: bold;")
+        QTimer.singleShot(2500, lambda: self._reset_btn(self.btn_copy_uri, "📋 Скопировать активную VLESS ссылку"))
 
     def _copy_all_links(self):
         nodes = self._get_nodes_for_pc()
         if not nodes:
             return
         all_uris = build_all_uris(nodes)
-        QApplication.clipboard().setText(all_uris)
-        QMessageBox.information(self, "Скопировано", f"Список из {len(nodes)} серверов скопирован в буфер обмена!")
+        safe_copy_to_clipboard(all_uris)
+        self.btn_copy_all_links.setText(f"✅ Скопировано ({len(nodes)} серв.)!")
+        self.btn_copy_all_links.setStyleSheet("background-color: #059669; color: white; font-weight: bold;")
+        QTimer.singleShot(2500, lambda: self._reset_btn(self.btn_copy_all_links, "📋 Скопировать ВСЕ серверы (список)"))
 
     def _save_base64_file(self):
         nodes = self._get_nodes_for_pc()
@@ -1055,13 +1088,15 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getSaveFileName(self, "Сохранить Base64 подписку", "subscription.txt", "Text Files (*.txt)")
         if path:
             b64 = generate_base64_subscription(nodes)
+            Path(path).write_text(b64, encoding="utf-8")
             QMessageBox.information(self, "Успех", f"Base64 подписка ({len(nodes)} серверов) сохранена:\n{path}")
-
 
     def _copy_profiles_path(self):
         path = self.profiles_path_input.text().strip()
-        QApplication.clipboard().setText(path)
-        QMessageBox.information(self, "Скопировано", f"Путь к папке профилей скопирован в буфер обмена:\n{path}")
+        safe_copy_to_clipboard(path)
+        self.btn_copy_path.setText("✅ Путь скопирован!")
+        self.btn_copy_path.setStyleSheet("background-color: #059669; color: white; font-weight: bold;")
+        QTimer.singleShot(2500, lambda: self._reset_btn(self.btn_copy_path, "📋 Скопировать путь к профилям"))
 
     def _open_profiles_folder(self):
         path = self.profiles_path_input.text().strip()
