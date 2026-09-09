@@ -220,9 +220,12 @@ def generate_clash_yaml(nodes_input: Union[Dict, List[Dict]],
     for tld in RU_DIRECT_TLDS:
         rules.append(f"DOMAIN-SUFFIX,{tld},DIRECT")
 
-    # 6. GeoIP routing with no-resolve
-    rules.append("GEOIP,RU,DIRECT,no-resolve")
-    rules.append("GEOIP,private,DIRECT,no-resolve")
+    # 6. Local and Private Networks (Self-contained, NO MMDB dependency)
+    rules.append("IP-CIDR,127.0.0.0/8,DIRECT,no-resolve")
+    rules.append("IP-CIDR,10.0.0.0/8,DIRECT,no-resolve")
+    rules.append("IP-CIDR,172.16.0.0/12,DIRECT,no-resolve")
+    rules.append("IP-CIDR,192.168.0.0/16,DIRECT,no-resolve")
+    rules.append("IP-CIDR,100.64.0.0/10,DIRECT,no-resolve")
 
     # 7. Fallback match -> PROXY
     rules.append("MATCH,PROXY")

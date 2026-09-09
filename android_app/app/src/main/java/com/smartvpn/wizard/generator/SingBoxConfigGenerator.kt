@@ -315,9 +315,16 @@ class SingBoxConfigGenerator {
         sb.append("  - DOMAIN-SUFFIX,rbc.ru,DIRECT\n")
         sb.append("  - DOMAIN-SUFFIX,ria.ru,DIRECT\n")
         sb.append("  - DOMAIN-SUFFIX,tass.ru,DIRECT\n")
-        // Russian IPs & Private Networks
-        sb.append("  - GEOIP,RU,DIRECT,no-resolve\n")
-        sb.append("  - GEOIP,private,DIRECT,no-resolve\n")
+        sb.append("  - DOMAIN-SUFFIX,ozonusercontent.com,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,wbstatic.net,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,yandex.com,DIRECT\n")
+        sb.append("  - DOMAIN-SUFFIX,aeza.net,DIRECT\n")
+        // Local and Private Networks (Self-contained, NO MMDB dependency)
+        sb.append("  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve\n")
+        sb.append("  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve\n")
+        sb.append("  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve\n")
+        sb.append("  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve\n")
+        sb.append("  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve\n")
         // Everything else -> PROXY
         sb.append("  - MATCH,PROXY\n")
 
