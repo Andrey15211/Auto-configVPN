@@ -244,7 +244,7 @@ QComboBox QAbstractItemView {
 """
 
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.6"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 
@@ -279,15 +279,40 @@ class UpdateCheckerThread(QThread):
                         self.check_finished.emit(True, f"Доступна новая версия v{tag}")
                     else:
                         self.check_finished.emit(False, "У вас установлена актуальная версия")
+                    return
                 elif resp.status == 404:
                     self.check_finished.emit(False, f"Релизов пока нет. У вас актуальная версия (v{APP_VERSION}).")
-                else:
-                    self.check_finished.emit(False, f"Ответ сервера: {resp.status}")
+                    return
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 self.check_finished.emit(False, f"Релизов пока нет. У вас актуальная версия (v{APP_VERSION}).")
-            else:
-                self.check_finished.emit(False, f"Ошибка проверки ({e.code})")
+                return
+            # On 403 or other API errors, fall back to web redirect
+        except Exception:
+            pass
+
+        # Fallback to web redirect to bypass GitHub API rate limits
+        self._fetch_from_web()
+
+    def _fetch_from_web(self):
+        try:
+            web_url = f"https://github.com/{GITHUB_REPO}/releases/latest"
+            req_web = urllib.request.Request(
+                web_url,
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            )
+            with urllib.request.urlopen(req_web, timeout=10) as resp_web:
+                final_url = resp_web.geturl()
+                tag = final_url.rstrip("/").split("/")[-1].lstrip("vV")
+                if not tag or tag == "latest":
+                    self.check_finished.emit(False, "Не удалось определить последнюю версию")
+                    return
+                exe_url = f"https://github.com/{GITHUB_REPO}/releases/download/v{tag}/SmartVPNWizard.exe"
+                if self._is_newer(tag, APP_VERSION):
+                    self.update_available.emit(tag, f"Доступна новая версия v{tag}", exe_url)
+                    self.check_finished.emit(True, f"Доступна новая версия v{tag}")
+                else:
+                    self.check_finished.emit(False, "У вас установлена актуальная версия")
         except Exception as e:
             self.check_finished.emit(False, f"Не удалось проверить: {e}")
 
