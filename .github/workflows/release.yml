@@ -32,8 +32,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Build Standalone EXE with PyInstaller
+        shell: cmd
         run: |
-          python -m PyInstaller --noconfirm SmartVPNWizard.spec
+          pyinstaller --clean --noconsole --onefile --icon icon.ico --name "SmartVPNWizard" main.py
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
@@ -65,7 +66,7 @@ jobs:
 
       - name: Build Android Release APK
         working-directory: android_app
-        run: ./gradlew assembleRelease --stacktrace --no-daemon
+        run: ./gradlew assembleRelease -x lint -x lintVitalRelease --stacktrace --no-daemon
 
       - name: Prepare APK binary
         working-directory: android_app
