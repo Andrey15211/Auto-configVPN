@@ -57,6 +57,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        GitHubUpdateChecker.pendingApk?.let { apk ->
+            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()) {
+                val apkToInstall = apk
+                GitHubUpdateChecker.pendingApk = null
+                updateChecker.promptInstall(apkToInstall)
+            }
+        }
+    }
+
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
         return true
