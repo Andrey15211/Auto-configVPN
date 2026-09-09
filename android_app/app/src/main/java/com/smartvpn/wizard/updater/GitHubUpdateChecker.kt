@@ -46,6 +46,9 @@ class GitHubUpdateChecker(
 
     suspend fun checkForUpdates(isManualCheck: Boolean = false) = withContext(Dispatchers.IO) {
         try {
+            var releaseAndAsset: Pair<GitHubRelease, GitHubAsset>? = null
+
+            // 1. Try official GitHub REST API
             val url = "https://api.github.com/repos/$repoOwner/$repoName/releases/latest"
             val request = Request.Builder()
                 .url(url)
@@ -53,32 +56,43 @@ class GitHubUpdateChecker(
                 .header("User-Agent", "SmartVPNWizard-Android")
                 .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
+            try {
+                val response = client.newCall(request).execute()
+                if (response.isSuccessful) {
+                    val body = response.body?.string()
+                    if (body != null) {
+                        val release = gson.fromJson(body, GitHubRelease::class.java)
+                        val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+                        if (apkAsset != null) {
+                            releaseAndAsset = Pair(release, apkAsset)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore API error and fall back to web redirect
+            }
+
+            // 2. If API failed (e.g. HTTP 403 rate limit on shared mobile IP), fall back to web redirect
+            if (releaseAndAsset == null) {
+                releaseAndAsset = fetchViaWebFallback()
+            }
+
+            if (releaseAndAsset == null) {
                 if (isManualCheck) {
                     withContext(Dispatchers.Main) {
-                        if (response.code == 404) {
-                            Toast.makeText(context, context.getString(R.string.update_latest), Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Не удалось проверить обновления (${response.code})", Toast.LENGTH_SHORT).show()
-                        }
+                        Toast.makeText(context, "Не удалось проверить обновления", Toast.LENGTH_SHORT).show()
                     }
                 }
                 return@withContext
             }
 
-            val body = response.body?.string() ?: return@withContext
-            val release = gson.fromJson(body, GitHubRelease::class.java)
-
+            val (release, apkAsset) = releaseAndAsset
             val currentVersion = getCurrentAppVersion()
             val remoteVersion = release.tagName.trimStart('v', 'V')
 
             if (isNewerVersion(remoteVersion, currentVersion)) {
-                val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
-                if (apkAsset != null) {
-                    withContext(Dispatchers.Main) {
-                        showUpdateDialog(release, apkAsset.browserDownloadUrl, apkAsset.name)
-                    }
+                withContext(Dispatchers.Main) {
+                    showUpdateDialog(release, apkAsset.browserDownloadUrl, apkAsset.name)
                 }
             } else if (isManualCheck) {
                 withContext(Dispatchers.Main) {
@@ -95,6 +109,40 @@ class GitHubUpdateChecker(
         }
     }
 
+    private fun fetchViaWebFallback(): Pair<GitHubRelease, GitHubAsset>? {
+        return try {
+            val webUrl = "https://github.com/$repoOwner/$repoName/releases/latest"
+            val req = Request.Builder()
+                .url(webUrl)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 14)")
+                .build()
+            val resp = client.newCall(req).execute()
+            if (!resp.isSuccessful) return null
+            val tag = resp.request.url.pathSegments.lastOrNull() ?: return null
+            if (!tag.startsWith("v", ignoreCase = true) && !tag.any { it.isDigit() }) return null
+
+            val apkName = "SmartVPNWizard.apk"
+            val downloadUrl = "https://github.com/$repoOwner/$repoName/releases/download/$tag/$apkName"
+            val asset = GitHubAsset(
+                name = apkName,
+                browserDownloadUrl = downloadUrl,
+                size = 5842648L,
+                contentType = "application/vnd.android.package-archive"
+            )
+            val release = GitHubRelease(
+                tagName = tag,
+                name = "Release $tag",
+                body = "Доступно обновление до версии $tag",
+                htmlUrl = "https://github.com/$repoOwner/$repoName/releases/tag/$tag",
+                assets = listOf(asset)
+            )
+            Pair(release, asset)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
     suspend fun fetchLatestRelease(): Pair<GitHubRelease, GitHubAsset>? = withContext(Dispatchers.IO) {
         try {
             val url = "https://api.github.com/repos/$repoOwner/$repoName/releases/latest"
@@ -105,22 +153,23 @@ class GitHubUpdateChecker(
                 .build()
 
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return@withContext null
-            val body = response.body?.string() ?: return@withContext null
-            val release = gson.fromJson(body, GitHubRelease::class.java)
-
-            val currentVersion = getCurrentAppVersion()
-            val remoteVersion = release.tagName.trimStart('v', 'V')
-
-            if (isNewerVersion(remoteVersion, currentVersion)) {
-                val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
-                if (apkAsset != null) {
-                    return@withContext Pair(release, apkAsset)
+            if (response.isSuccessful) {
+                val body = response.body?.string()
+                if (body != null) {
+                    val release = gson.fromJson(body, GitHubRelease::class.java)
+                    val apkAsset = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+                    if (apkAsset != null) {
+                        val currentVersion = getCurrentAppVersion()
+                        val remoteVersion = release.tagName.trimStart('v', 'V')
+                        if (isNewerVersion(remoteVersion, currentVersion)) {
+                            return@withContext Pair(release, apkAsset)
+                        }
+                    }
                 }
             }
-            null
+            fetchViaWebFallback()
         } catch (e: Exception) {
-            null
+            fetchViaWebFallback()
         }
     }
 
