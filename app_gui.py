@@ -246,7 +246,7 @@ QComboBox QAbstractItemView {
 """
 
 
-APP_VERSION = "1.2.9"
+APP_VERSION = "1.3.0"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 
@@ -679,7 +679,7 @@ class MainWindow(QMainWindow):
 
         input_row = QHBoxLayout()
         self.link_input = QLineEdit()
-        self.link_input.setPlaceholderText("Вставьте vless://, hysteria2:// ссылку или URL подписки (https://)...")
+        self.link_input.setPlaceholderText("Вставьте vless://, hysteria2://, vpn:// ссылку Amnezia или URL подписки...")
         # Load previously saved link on this machine, if any (fresh stock installs start empty)
         self.settings = QSettings("SmartVPN", "Wizard")
         last_link = self.settings.value("last_link", "")
@@ -919,18 +919,18 @@ class MainWindow(QMainWindow):
         info_layout.setSpacing(10)
 
         guide_text = QLabel(
-            "<b>Поддерживаемые клиенты:</b><br>"
-            "• <b>Happ</b> (iOS / Android) — Быстрый клиент с поддержкой VLESS Reality.<br>"
-            "• <b>v2rayNG</b> (Android) — Стандартный проверенный клиент с Per-App прокси.<br>"
-            "• <b>v2raytun</b> (iOS / Android) — Популярное решение для мобильных.<br>"
-            "• <b>Incy (INCY-Proxy)</b> (Android / iOS) — Клиент со встроенным обходом РФ-банкинга.<br>"
-            "• <b>v2rayN</b> (Windows) — Классический GUI для ПК.<br><br>"
-            "<b>Как импортировать:</b><br>"
-            "1. <b>Один сервер:</b> Откройте клиент на телефоне → «+» → <i>Сканировать QR-код</i> (наведите на экран слева).<br>"
-            "2. <b>Все серверы сразу:</b> Нажмите <i>«Скопировать ВСЕ серверы»</i> → в приложении выберите <i>«Импорт из буфера обмена»</i>.<br>"
-            "3. <b>Подписка:</b> Экспортируйте Base64 файл и загрузите как подписку.<br><br>"
-            "<b>Настройка прямого обхода (Direct):</b><br>"
-            "В настройках приложения включите <b>«Раздельное туннелирование» (Per-App Proxy)</b> или выберите правило <b>«Обход доменов РФ (Bypass RU)»</b>."
+            "<b>Рекомендуемые клиенты:</b><br>"
+            "• <b>v2rayNG</b> (Android) — Золотой стандарт, 100% стабильная поддержка VLESS Reality.<br>"
+            "• <b>Happ</b> (iOS / Android) — Быстрый Sing-box клиент со встроенным обходом блокировок.<br>"
+            "• <b>v2raytun</b> (iOS / Android) — Популярное приложение для телефонов.<br><br>"
+            "<b>💡 Самый надёжный способ без камеры:</b><br>"
+            "Нажмите <b>«📋 Скопировать активную VLESS ссылку»</b> слева и отправьте её в Telegram.<br>"
+            "На телефоне скопируйте ссылку → в приложении нажмите <b>«+»</b> → <b>«Импорт из буфера обмена»</b>.<br><br>"
+            "<b>📷 Сканирование QR-кода:</b><br>"
+            "В приложении нажмите <b>«+»</b> → <b>«Сканировать QR-код»</b> и наведите камеру на QR-код слева.<br><br>"
+            "<b>⚠️ Если в v2rayTun ошибка «Timeout»:</b><br>"
+            "В настройках сервера прокрутите вниз до блока <i>«Безопасность»</i>: там обязательно должно быть выбрано <b>reality</b>, "
+            "заполнен Public Key и Flow: <b>xtls-rprx-vision</b>."
         )
         guide_text.setWordWrap(True)
         guide_text.setStyleSheet("color: #cbd5e1; line-height: 140%;")
@@ -1090,7 +1090,7 @@ class MainWindow(QMainWindow):
             return
         try:
             uri = build_vless_uri(self.current_node)
-            pil_img = generate_qr_image(uri, size=300)
+            pil_img = generate_qr_image(uri, size=250)
 
             # Convert PIL to QPixmap
             buffer = BytesIO()
