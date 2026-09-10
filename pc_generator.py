@@ -49,7 +49,8 @@ def parse_node_uri(link: str) -> Optional[Dict]:
             node["security"] = "reality"
             node["flow"] = get_p("flow", "xtls-rprx-vision")
             node["servername"] = get_p("sni", "gateway.icloud.com")
-            node["client_fingerprint"] = get_p("fp", "chrome")
+            raw_fp = get_p("fp")
+            node["client_fingerprint"] = "safari" if ("icloud" in node["servername"].lower() and (not raw_fp or raw_fp.lower() in ("chrome", "random", "randomized"))) else (raw_fp or "chrome")
             node["public_key"] = get_p("pbk", "")
             node["short_id"] = get_p("sid", "")
             node["reality-opts"] = {
@@ -190,7 +191,7 @@ def _parse_amnezia_vpn_key(vpn_key: str) -> List[Dict]:
                     "security": sec,
                     "flow": flow,
                     "servername": sni,
-                    "client_fingerprint": "chrome",
+                    "client_fingerprint": "safari" if "icloud" in sni.lower() else "chrome",
                     "public_key": pbk,
                     "short_id": sid,
                     "reality-opts": {

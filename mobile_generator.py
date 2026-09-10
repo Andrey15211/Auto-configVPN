@@ -1,3 +1,4 @@
+import re
 import base64
 import json
 import urllib.parse
@@ -15,9 +16,14 @@ from catalog import (
 
 
 def build_vless_uri(node: Dict) -> str:
-    """Return raw URI or reconstruct standard VLESS / Hysteria2 link."""
+    """Return sanitized mobile URI or reconstruct standard VLESS / Hysteria2 link with safari fingerprint."""
     if node.get("raw_uri"):
-        return node["raw_uri"]
+        raw = node["raw_uri"]
+        # Replace fp=chrome with fp=safari to prevent 1.7KB packet fragmentation on mobile DPI
+        raw = re.sub(r'([?&]fp=)(?:chrome|random|randomized)', r'\1safari', raw, flags=re.IGNORECASE)
+        if "fp=" not in raw and "?" in raw:
+            raw = raw.replace("?", "?fp=safari&")
+        return raw
 
     p_type = node.get("type", "vless")
     if p_type in ("hysteria2", "hy2"):
@@ -37,11 +43,14 @@ def build_vless_uri(node: Dict) -> str:
     port = node.get("port", 443)
     name = urllib.parse.quote(node.get("name", "Smart Mobile VPN"))
 
+    raw_fp = node.get("client_fingerprint") or "safari"
+    fp = "safari" if raw_fp.lower() in ("chrome", "random", "randomized", "") else raw_fp
+
     params = {
         "type": node.get("network", "tcp"),
         "security": node.get("security", "reality"),
         "pbk": node.get("public_key") or (node.get("reality-opts", {}) or {}).get("public-key", ""),
-        "fp": node.get("client_fingerprint", "chrome"),
+        "fp": fp,
         "sni": node.get("servername", "gateway.icloud.com"),
         "sid": node.get("short_id") or (node.get("reality-opts", {}) or {}).get("short-id", ""),
         "spx": "/",
@@ -101,12 +110,14 @@ def _build_singbox_outbound(node: Dict, tag: str = "proxy") -> Dict:
         outbound["flow"] = node["flow"]
 
     sec = node.get("security", "reality")
+    raw_fp = node.get("client_fingerprint") or "safari"
+    fp = "safari" if raw_fp.lower() in ("chrome", "random", "randomized", "") else raw_fp
     tls_dict = {
         "enabled": True,
         "server_name": node.get("servername", "gateway.icloud.com"),
         "utls": {
             "enabled": True,
-            "fingerprint": node.get("client_fingerprint", "chrome")
+            "fingerprint": fp
         }
     }
     if sec == "reality" or node.get("public_key") or "reality-opts" in node:

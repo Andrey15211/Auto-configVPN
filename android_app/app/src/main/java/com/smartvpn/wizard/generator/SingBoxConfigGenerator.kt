@@ -77,8 +77,8 @@ class SingBoxConfigGenerator {
         val flow = uri.getQueryParameter("flow") ?: "xtls-rprx-vision"
         val pbk = uri.getQueryParameter("pbk") ?: ""
         val sid = uri.getQueryParameter("sid") ?: ""
-        val sni = uri.getQueryParameter("sni") ?: "gateway.icloud.com"
-        val fp = uri.getQueryParameter("fp") ?: "chrome"
+        val rawFp = uri.getQueryParameter("fp") ?: "safari"
+        val fp = if (rawFp.equals("chrome", ignoreCase = true) || rawFp.isBlank()) "safari" else rawFp
 
         return VlessNode(
             name = name,
