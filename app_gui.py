@@ -246,7 +246,7 @@ QComboBox QAbstractItemView {
 """
 
 
-APP_VERSION = "1.2.8"
+APP_VERSION = "1.2.9"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 
@@ -490,23 +490,50 @@ class UpdateProgressDialog(QDialog):
         # Prepare self-update script via PowerShell
         ps_script = os.path.join(tempfile.gettempdir(), "smartvpn_self_update.ps1")
         ps_code = f"""# SmartVPN Self-Updater
-Start-Sleep -Milliseconds 1200
+$ErrorActionPreference = "Continue"
+$logFile = "$env:TEMP\\smartvpn_update.log"
+"Starting update at $(Get-Date)" | Out-File $logFile -Encoding utf8
+
 $target = "{current_exe}"
 $source = "{temp_exe}"
-$retries = 30
+
+"Target: $target" | Out-File $logFile -Append -Encoding utf8
+"Source: $source" | Out-File $logFile -Append -Encoding utf8
+
+Start-Sleep -Milliseconds 1500
+
+$retries = 40
 while ($retries -gt 0) {{
     try {{
         if (Test-Path -LiteralPath $target) {{
             Remove-Item -LiteralPath $target -Force -ErrorAction Stop
         }}
+        "Old exe removed successfully" | Out-File $logFile -Append -Encoding utf8
         break
     }} catch {{
-        Start-Sleep -Milliseconds 500
+        "Target still locked ($retries left): $_" | Out-File $logFile -Append -Encoding utf8
+        Start-Sleep -Milliseconds 400
         $retries--
     }}
 }}
-Move-Item -LiteralPath $source -Destination $target -Force
-Start-Process -FilePath $target
+
+try {{
+    Move-Item -LiteralPath $source -Destination $target -Force -ErrorAction Stop
+    "Moved $source to $target successfully" | Out-File $logFile -Append -Encoding utf8
+}} catch {{
+    "Move failed: $_" | Out-File $logFile -Append -Encoding utf8
+    Copy-Item -LiteralPath $source -Destination $target -Force -ErrorAction SilentlyContinue
+}}
+
+$targetDir = [System.IO.Path]::GetDirectoryName($target)
+try {{
+    Start-Process -FilePath $target -WorkingDirectory $targetDir -ErrorAction Stop
+    "Started $target in $targetDir" | Out-File $logFile -Append -Encoding utf8
+}} catch {{
+    "Start-Process failed: $_" | Out-File $logFile -Append -Encoding utf8
+}}
+
+Start-Sleep -Seconds 1
 Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
 """
         try:
@@ -515,7 +542,8 @@ Remove-Item -LiteralPath $MyInvocation.MyCommand.Path -Force -ErrorAction Silent
 
             subprocess.Popen(
                 ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps_script],
-                creationflags=0x08000000 | 0x00000008  # CREATE_NO_WINDOW | DETACHED_PROCESS
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP,
+                close_fds=True
             )
             QApplication.instance().quit()
         except Exception as e:
