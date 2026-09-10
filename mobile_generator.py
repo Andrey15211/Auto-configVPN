@@ -315,14 +315,15 @@ def generate_singbox_json(nodes: Union[Dict, List[Dict]],
 
 
 def generate_qr_image(data: str, size: int = 350) -> Image.Image:
-    """Generate high-quality PIL Image containing QR code."""
+    """Generate high-contrast, razor-sharp PIL Image containing QR code easily scannable from screens."""
     qr = qrcode.QRCode(
         version=None,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
         box_size=10,
-        border=3
+        border=4
     )
     qr.add_data(data)
     qr.make(fit=True)
-    img = qr.make_image(fill_color="#0f172a", back_color="#ffffff")
-    return img.resize((size, size))
+    img = qr.make_image(fill_color="#000000", back_color="#ffffff")
+    return img.resize((size, size), Image.Resampling.NEAREST)
+

@@ -136,13 +136,104 @@ def fetch_subscription(url: str) -> List[Dict]:
     return nodes
 
 
+def _parse_amnezia_vpn_key(vpn_key: str) -> List[Dict]:
+    """Parse Amnezia vpn:// base64 key or give descriptive error."""
+    raw = vpn_key.strip()
+    if not raw.startswith("vpn://"):
+        return []
+
+    b64_str = raw[len("vpn://"):].strip()
+    missing_padding = len(b64_str) % 4
+    if missing_padding:
+        b64_str += "=" * (4 - missing_padding)
+
+    try:
+        decoded = base64.b64decode(b64_str)
+        if decoded.startswith(b"\x1f\x8b"):
+            import gzip
+            decoded = gzip.decompress(decoded)
+        text_data = decoded.decode("utf-8", errors="ignore")
+        data = json.loads(text_data)
+    except Exception as e:
+        raise ValueError(f"Не удалось расшифровать ключ Amnezia (vpn://): {e}")
+
+    containers = data.get("containers", [])
+    if not isinstance(containers, list):
+        containers = [data]
+
+    nodes = []
+    has_awg = False
+
+    for c in containers:
+        c_type = str(c.get("container", ""))
+        if "xray" in c_type or "vless" in c_type:
+            xray_data = c.get("xray", {}) or c
+            server = xray_data.get("server") or data.get("server", "") or data.get("hostName", "")
+            port = int(xray_data.get("port") or 443)
+            uuid = xray_data.get("client_id") or xray_data.get("uuid") or xray_data.get("userId") or ""
+            sec = xray_data.get("security", "reality")
+            pbk = xray_data.get("publicKey") or xray_data.get("public_key") or ""
+            sid = xray_data.get("shortId") or xray_data.get("short_id") or ""
+            sni = xray_data.get("sni") or xray_data.get("serverName") or "gateway.icloud.com"
+            flow = xray_data.get("flow", "xtls-rprx-vision")
+
+            if server and uuid:
+                node = {
+                    "name": data.get("description") or f"Amnezia XRay ({server})",
+                    "type": "vless",
+                    "server": server,
+                    "port": port,
+                    "uuid": uuid,
+                    "network": "tcp",
+                    "udp": True,
+                    "tls": True,
+                    "security": sec,
+                    "flow": flow,
+                    "servername": sni,
+                    "client_fingerprint": "chrome",
+                    "public_key": pbk,
+                    "short_id": sid,
+                    "reality-opts": {
+                        "public-key": pbk,
+                        "short-id": sid
+                    }
+                }
+                nodes.append(node)
+        elif "awg" in c_type or "wireguard" in c_type:
+            has_awg = True
+
+    if nodes:
+        return nodes
+
+    if has_awg:
+        raise ValueError(
+            "Этот ключ Amnezia содержит протокол AmneziaWG (WireGuard).\n"
+            "Clash Verge Rev работает на протоколе XRay (VLESS Reality).\n"
+            "Чтобы подключиться через Clash Verge, выберите в Амнезии «Поделиться протоколом XRay», "
+            "либо используйте данный ключ в официальном приложении AmneziaVPN."
+        )
+
+    raise ValueError("В ключе Amnezia не найдено поддерживаемых серверов XRay/VLESS.")
+
+
 def parse_any_source(link: str) -> List[Dict]:
-    """Parse vless/hysteria link, multi-line links, or subscription URL into a list of node dicts."""
+    """Parse vless/hysteria link, multi-line links, subscription URL, or Amnezia key into a list of node dicts."""
     link = link.strip()
     if not link:
         return []
     if link.startswith("http://") or link.startswith("https://"):
         return fetch_subscription(link)
+
+    if link.startswith("vpn://"):
+        return _parse_amnezia_vpn_key(link)
+
+    if "[interface]" in link.lower() and "[peer]" in link.lower():
+        raise ValueError(
+            "Вы вставили конфигурацию AmneziaWG / WireGuard ([Interface]).\n"
+            "Clash Verge Rev работает по протоколу VLESS Reality (XRay).\n"
+            "Для Clash Verge нужна ссылка vless://. Этот текстовый конфиг предназначен "
+            "для приложения AmneziaWG или официального клиента AmneziaVPN."
+        )
 
     # Check if multiple lines
     lines = [l.strip() for l in link.splitlines() if l.strip()]
@@ -160,7 +251,7 @@ def parse_any_source(link: str) -> List[Dict]:
             nodes.append(node)
 
     if not nodes:
-        raise ValueError("Ссылка должна начинаться с vless://, hysteria2:// или https://")
+        raise ValueError("Ссылка должна начинаться с vless://, hysteria2://, vpn:// или https://")
     return nodes
 
 
