@@ -716,17 +716,17 @@ class MainWindow(QMainWindow):
         # Tab 1: Clash / FlClash (YAML)
         self.tab_pc = QWidget()
         self._build_pc_tab()
-        self.tabs.addTab(self.tab_pc, "🖥️ Clash / FlClash (YAML)")
+        self.tabs.addTab(self.tab_pc, "🖥️ Clash Verge / FClashX (YAML)")
 
         # Tab 2: Sing-box (Hiddify / Throne / NekoBox)
         self.tab_singbox = QWidget()
         self._build_singbox_tab()
-        self.tabs.addTab(self.tab_singbox, "⚡ Sing-box (Hiddify / Throne)")
+        self.tabs.addTab(self.tab_singbox, "⚡ Hiddify (Sing-box JSON)")
 
         # Tab 3: Links & QR (Happ / v2rayNG / Incy)
         self.tab_links = QWidget()
         self._build_links_tab()
-        self.tabs.addTab(self.tab_links, "📱 Ссылки и QR (Happ / v2rayNG / Incy)")
+        self.tabs.addTab(self.tab_links, "📱 Ссылки и QR (Hiddify / FClashX / Amnezia)")
 
         # Tab 4: Games List
         self.tab_games = QWidget()
@@ -749,7 +749,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(14)
 
         desc = QLabel(
-            "<b>Для клиентов:</b> <b>Clash Verge Rev</b>, <b>FlClash</b>, <b>Clash Meta</b>, <b>Clash Nyanpasu</b>.<br>"
+            "<b>Для клиентов:</b> <b>Clash Verge Rev</b> (ПК) и <b>FClashX (FlClash)</b> (Android / iOS / Mac).<br>"
             "Использует формат <b>Mihomo (Clash Meta) YAML</b>. Все отмеченные игры (.exe) и сервисы РФ идут "
             "<b>напрямую (DIRECT)</b> с минимальным пингом. Discord, YouTube и заблокированные сайты идут через прокси."
         )
@@ -757,7 +757,7 @@ class MainWindow(QMainWindow):
         desc.setStyleSheet("color: #cbd5e1; line-height: 140%;")
         layout.addWidget(desc)
 
-        action_card = QGroupBox("Развёртывание и экспорт для Clash / FlClash")
+        action_card = QGroupBox("Развёртывание и экспорт для Clash Verge / FClashX")
         ac_layout = QVBoxLayout(action_card)
         ac_layout.setSpacing(10)
 
@@ -771,7 +771,7 @@ class MainWindow(QMainWindow):
         ac_layout.addWidget(self.pc_status_label)
 
         btn_row = QHBoxLayout()
-        btn_save_file = QPushButton("💾 Сохранить .yaml (Clash / FlClash)")
+        btn_save_file = QPushButton("💾 Сохранить .yaml (Clash Verge / FClashX)")
         btn_save_file.clicked.connect(self._save_yaml_file)
         self.btn_copy_yaml = QPushButton("📋 Скопировать YAML в буфер")
         self.btn_copy_yaml.clicked.connect(self._copy_yaml)
@@ -840,7 +840,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(14)
 
         desc = QLabel(
-            "<b>Для клиентов:</b> <b>Hiddify</b> (ПК / Android / iOS), <b>Throne</b>, <b>NekoBox</b> (Android), <b>NekoRay</b> (Win/Linux).<br>"
+            "<b>Для клиентов:</b> <b>Hiddify</b> (Android / iOS / Windows / Mac).<br>"
             "Использует официальную спецификацию <b>Sing-box 1.10+ JSON</b>. Включает мультисерверный селектор (`selector`), "
             "прямой обход для игр на ПК (`process_name`) и обход российских мобильных приложений (`package_name`)."
         )
@@ -848,11 +848,11 @@ class MainWindow(QMainWindow):
         desc.setStyleSheet("color: #cbd5e1; line-height: 140%;")
         layout.addWidget(desc)
 
-        action_card = QGroupBox("Экспорт конфигурации Sing-box")
+        action_card = QGroupBox("Экспорт конфигурации для Hiddify (Sing-box)")
         ac_layout = QVBoxLayout(action_card)
         ac_layout.setSpacing(10)
 
-        self.btn_save_singbox = QPushButton("💾 Сохранить .json файл (Sing-box / Hiddify / Throne)")
+        self.btn_save_singbox = QPushButton("💾 Сохранить .json файл (Hiddify)")
         self.btn_save_singbox.setObjectName("btnPrimary")
         self.btn_save_singbox.clicked.connect(self._save_singbox_file)
         ac_layout.addWidget(self.btn_save_singbox)
@@ -862,7 +862,7 @@ class MainWindow(QMainWindow):
         ac_layout.addWidget(self.singbox_status_label)
 
         btn_row = QHBoxLayout()
-        self.btn_copy_singbox = QPushButton("📋 Скопировать Sing-box JSON в буфер")
+        self.btn_copy_singbox = QPushButton("📋 Скопировать Sing-box JSON (Hiddify)")
         self.btn_copy_singbox.clicked.connect(self._copy_singbox_json)
         btn_view_preview = QPushButton("👁️ Превью Sing-box JSON")
         btn_view_preview.clicked.connect(self._toggle_singbox_preview)
@@ -907,7 +907,7 @@ class MainWindow(QMainWindow):
         self.btn_copy_all_links.clicked.connect(self._copy_all_links)
         qr_layout.addWidget(self.btn_copy_all_links)
 
-        self.btn_copy_routing_json = QPushButton("📋 Профиль с маршрутизацией (Hiddify / Happ)")
+        self.btn_copy_routing_json = QPushButton("📋 Профиль с маршрутизацией (Hiddify)")
         self.btn_copy_routing_json.setStyleSheet("background-color: #0284c7; color: white; font-weight: bold;")
         self.btn_copy_routing_json.clicked.connect(self._copy_singbox_json)
         qr_layout.addWidget(self.btn_copy_routing_json)
@@ -925,16 +925,16 @@ class MainWindow(QMainWindow):
 
         guide_text = QLabel(
             "<b>Рекомендуемые клиенты:</b><br>"
-            "• <b>v2rayNG</b> (Android) — Золотой стандарт, 100% стабильная поддержка VLESS Reality.<br>"
-            "• <b>Hiddify / Happ</b> (iOS / Android) — Быстрые клиенты со встроенной маршрутизацией.<br>"
-            "• <b>v2raytun</b> (iOS / Android) — Популярный мобильный клиент.<br><br>"
+            "• <b>Clash Verge Rev</b> (Windows / Mac / Linux) — Основной клиент для ПК с раздельным туннелированием для игр.<br>• <b>FClashX (FlClash)</b> (Android / iOS) — Рекомендуемый клиент для телефона на базе Mihomo.<br>• <b>Hiddify</b> (Android / iOS / Windows) — Рекомендуемый клиент на базе Sing-box.<br>• <b>AmneziaVPN</b> (Android / iOS / Windows) — Для протокола Amnezia.<br>"
+            ""
+            "<br>"
             "<b>💡 Самый надёжный способ импорта (без опечаток):</b><br>"
             "1. Нажмите <b>«📋 Скопировать активную VLESS ссылку»</b> слева.<br>"
             "2. Перешлите её себе/подруге в Telegram/WhatsApp.<br>"
             "3. На телефоне скопируйте ссылку → в приложении нажмите <b>«+»</b> → <b>«Импорт из буфера обмена»</b>.<br><br>"
             "<b>🛣️ Готовая маршрутизация (РФ напрямую, запреты через VPN):</b><br>"
             "• <b>В Hiddify:</b> Нажмите <i>«📋 Профиль с маршрутизацией»</i> и вставьте в Hiddify через буфер, либо в самом Hiddify зайдите в <i>Настройки → Маршрутизация → Регион: Россия</i>.<br>"
-            "• <b>В Happ:</b> При импорте ссылки Happ автоматически использует встроенный профиль обхода.<br><br>"
+            ""
             "<b>⚠️ Внимание по ручному вводу ключей:</b><br>"
             "Никогда не вбивайте ключ Reality руками с клавиатуры! В криптографическом ключе легко спутать "
             "символы <code>I</code> (большая i) и <code>l</code> (маленькая L). Если ошибиться хоть в одной букве, "

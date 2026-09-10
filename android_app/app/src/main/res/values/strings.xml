@@ -7,18 +7,18 @@
     <string name="title_actions">3. Экспорт под клиенты</string>
     <string name="btn_help_clients">ℹ️ Справка: совместимость приложений</string>
     
-    <string name="title_singbox">📱 Sing-box Core (Hiddify, NekoBox, Karing)</string>
+    <string name="title_singbox">📱 Hiddify (Sing-box Core)</string>
     <string name="desc_singbox">Содержит правила обхода выбранных приложений внутри JSON</string>
     <string name="btn_copy_singbox">📋 Скопировать Sing-box JSON</string>
     <string name="btn_share_singbox">📤 Поделиться JSON</string>
 
-    <string name="title_xray">🚀 Xray Core (v2rayNG, v2rayTun, Incy)</string>
+    <string name="title_xray">🚀 VLESS Ссылки (Hiddify / FClashX / Amnezia)</string>
     <string name="desc_xray">Импорт через буфер. Обход приложений включается в настройках клиента!</string>
     <string name="btn_copy_vless">📋 Скопировать vless://</string>
     <string name="btn_copy_base64">📦 Скопировать Base64</string>
 
-    <string name="title_clash">🐱 Clash / Mihomo Core (Flclash, CMFA)</string>
-    <string name="desc_clash">Профиль с правилами и DNS для Flclash на смартфоне</string>
+    <string name="title_clash">🐱 FClashX / FlClash (Mihomo Core)</string>
+    <string name="desc_clash">Профиль с правилами и DNS для FClashX на смартфоне</string>
     <string name="btn_copy_clash">📋 Скопировать Clash YAML</string>
     <string name="btn_share_clash">📤 Поделиться YAML</string>
 
