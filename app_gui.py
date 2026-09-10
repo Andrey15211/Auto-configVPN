@@ -246,7 +246,7 @@ QComboBox QAbstractItemView {
 """
 
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.1"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 
@@ -907,6 +907,11 @@ class MainWindow(QMainWindow):
         self.btn_copy_all_links.clicked.connect(self._copy_all_links)
         qr_layout.addWidget(self.btn_copy_all_links)
 
+        self.btn_copy_routing_json = QPushButton("📋 Профиль с маршрутизацией (Hiddify / Happ)")
+        self.btn_copy_routing_json.setStyleSheet("background-color: #0284c7; color: white; font-weight: bold;")
+        self.btn_copy_routing_json.clicked.connect(self._copy_singbox_json)
+        qr_layout.addWidget(self.btn_copy_routing_json)
+
         btn_save_b64 = QPushButton("💾 Экспорт Base64 подписки (.txt)")
         btn_save_b64.clicked.connect(self._save_base64_file)
         qr_layout.addWidget(btn_save_b64)
@@ -921,16 +926,19 @@ class MainWindow(QMainWindow):
         guide_text = QLabel(
             "<b>Рекомендуемые клиенты:</b><br>"
             "• <b>v2rayNG</b> (Android) — Золотой стандарт, 100% стабильная поддержка VLESS Reality.<br>"
-            "• <b>Happ</b> (iOS / Android) — Быстрый Sing-box клиент со встроенным обходом блокировок.<br>"
-            "• <b>v2raytun</b> (iOS / Android) — Популярное приложение для телефонов.<br><br>"
-            "<b>💡 Самый надёжный способ без камеры:</b><br>"
-            "Нажмите <b>«📋 Скопировать активную VLESS ссылку»</b> слева и отправьте её в Telegram.<br>"
-            "На телефоне скопируйте ссылку → в приложении нажмите <b>«+»</b> → <b>«Импорт из буфера обмена»</b>.<br><br>"
-            "<b>📷 Сканирование QR-кода:</b><br>"
-            "В приложении нажмите <b>«+»</b> → <b>«Сканировать QR-код»</b> и наведите камеру на QR-код слева.<br><br>"
-            "<b>⚠️ Если в v2rayTun ошибка «Timeout»:</b><br>"
-            "В настройках сервера прокрутите вниз до блока <i>«Безопасность»</i>: там обязательно должно быть выбрано <b>reality</b>, "
-            "заполнен Public Key и Flow: <b>xtls-rprx-vision</b>."
+            "• <b>Hiddify / Happ</b> (iOS / Android) — Быстрые клиенты со встроенной маршрутизацией.<br>"
+            "• <b>v2raytun</b> (iOS / Android) — Популярный мобильный клиент.<br><br>"
+            "<b>💡 Самый надёжный способ импорта (без опечаток):</b><br>"
+            "1. Нажмите <b>«📋 Скопировать активную VLESS ссылку»</b> слева.<br>"
+            "2. Перешлите её себе/подруге в Telegram/WhatsApp.<br>"
+            "3. На телефоне скопируйте ссылку → в приложении нажмите <b>«+»</b> → <b>«Импорт из буфера обмена»</b>.<br><br>"
+            "<b>🛣️ Готовая маршрутизация (РФ напрямую, запреты через VPN):</b><br>"
+            "• <b>В Hiddify:</b> Нажмите <i>«📋 Профиль с маршрутизацией»</i> и вставьте в Hiddify через буфер, либо в самом Hiddify зайдите в <i>Настройки → Маршрутизация → Регион: Россия</i>.<br>"
+            "• <b>В Happ:</b> При импорте ссылки Happ автоматически использует встроенный профиль обхода.<br><br>"
+            "<b>⚠️ Внимание по ручному вводу ключей:</b><br>"
+            "Никогда не вбивайте ключ Reality руками с клавиатуры! В криптографическом ключе легко спутать "
+            "символы <code>I</code> (большая i) и <code>l</code> (маленькая L). Если ошибиться хоть в одной букве, "
+            "TCP-пинг будет работать (49 мс), но соединение сбросится сервером и сайты не будут открываться."
         )
         guide_text.setWordWrap(True)
         guide_text.setStyleSheet("color: #cbd5e1; line-height: 140%;")
