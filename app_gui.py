@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 from datetime import datetime, timedelta
 
-from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer, QUrl
+from PySide6.QtCore import Qt, QThread, Signal, QSize, QTimer, QUrl, QSettings
 from PySide6.QtGui import QIcon, QPixmap, QImage, QFont, QColor, QDesktopServices
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -246,7 +246,7 @@ QComboBox QAbstractItemView {
 """
 
 
-APP_VERSION = "1.2.7"
+APP_VERSION = "1.2.8"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 
@@ -652,9 +652,14 @@ class MainWindow(QMainWindow):
         input_row = QHBoxLayout()
         self.link_input = QLineEdit()
         self.link_input.setPlaceholderText("Вставьте vless://, hysteria2:// ссылку или URL подписки (https://)...")
-        # Pre-fill with user's active working link
-        default_link = "vless://a9f3ec7e-f680-4067-94a1-96b515e642c3@176.124.207.182:443?type=tcp&security=reality&pbk=VhgG8Gv5D66I_nsTlvRyEAu3oIc7TPpyw9vuWHBEuj4&fp=chrome&sni=gateway.icloud.com&sid=a9a2084614af6db0&spx=%2F&flow=xtls-rprx-vision#Aeza%20Sweden%20(Reality)"
-        self.link_input.setText(default_link)
+        # Load previously saved link on this machine, if any (fresh stock installs start empty)
+        self.settings = QSettings("SmartVPN", "Wizard")
+        last_link = self.settings.value("last_link", "")
+        if "176.124.207.182" in str(last_link) or "a9f3ec7e-f680" in str(last_link):
+            last_link = ""
+            self.settings.setValue("last_link", "")
+        if last_link:
+            self.link_input.setText(last_link)
         self.link_input.textChanged.connect(self._on_link_changed)
 
         btn_paste = QPushButton("📋 Вставить")
@@ -985,6 +990,11 @@ class MainWindow(QMainWindow):
 
     def _on_link_changed(self, text: str):
         text = text.strip()
+        if hasattr(self, 'settings'):
+            if "176.124.207.182" not in text and "a9f3ec7e-f680" not in text:
+                self.settings.setValue("last_link", text)
+            else:
+                self.settings.setValue("last_link", "")
         if not text:
             self.node_info_label.setText("Ожидание ссылки...")
             self.node_info_label.setStyleSheet("color: #64748b; font-weight: 500;")
@@ -1195,7 +1205,7 @@ class MainWindow(QMainWindow):
                         f"• Серверов в профиле: {len(nodes)}\n"
                         f"• Игр в DIRECT: {len(exes)}\n\n"
                         f"При следующем запуске Clash Verge вы увидите обе независимые карточки:\n"
-                        f"1. «Aeza Sweden (Reality)» (Амнезия)\n"
+                        f"1. Исходный профиль (например, Амнезия)\n"
                         f"2. «Smart Split-Tunneling» ({len(nodes)} серверов)"
                     )
                 self.pc_status_label.setText(f"✅ Создан отдельный профиль ({len(nodes)} серв., {len(exes)} игр в DIRECT)")
