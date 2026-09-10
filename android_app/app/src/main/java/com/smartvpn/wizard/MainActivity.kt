@@ -207,7 +207,7 @@ class MainActivity : AppCompatActivity() {
                     copyToClipboard("Sing-box Config", json)
                     MaterialAlertDialogBuilder(this@MainActivity)
                         .setTitle("✅ Sing-box JSON скопирован!")
-                        .setMessage("Узлов: ${nodes.size}, приложений в обходе: ${selectedPackages.size}.\n\nПоддерживаемые клиенты:\n• Hiddify\n• NekoBox for Android\n• Karing\n• Sing-box\n\nВ приложении клиента выберите «Добавить из буфера обмена». Все выбранные приложения пойдут напрямую без VPN!")
+                        .setMessage("Узлов: ${nodes.size}, приложений в обходе: ${selectedPackages.size}.\n\nПоддерживаемые клиенты:\n• Hiddify (Sing-box Core)\n• FClashX / FlClash (Mihomo Core)\n\nВ приложении клиента выберите «Добавить из буфера обмена». Все выбранные приложения пойдут напрямую без VPN!")
                         .setPositiveButton("Понятно", null)
                         .show()
                 }
@@ -297,7 +297,7 @@ class MainActivity : AppCompatActivity() {
                 if (success) {
                     MaterialAlertDialogBuilder(this@MainActivity)
                         .setTitle("💾 Файл сохранён!")
-                        .setMessage("Конфигурация успешно сохранена:\n$path\n\nКак импортировать в Hiddify / NekoBox:\n1. Откройте Hiddify (или NekoBox).\n2. Нажмите «Новый профиль» (или [+]).\n3. Выберите «Импорт из файла» ➔ выберите smart_singbox.json из папки Загрузки.")
+                        .setMessage("Конфигурация успешно сохранена:\n$path\n\nКак импортировать в Hiddify:\n1. Откройте Hiddify.\n2. Нажмите «Новый профиль» (или [+]).\n3. Выберите «Импорт из файла» ➔ выберите smart_singbox.json из папки Загрузки.")
                         .setPositiveButton("Понятно", null)
                         .show()
                 } else {
@@ -373,13 +373,13 @@ class MainActivity : AppCompatActivity() {
         MaterialAlertDialogBuilder(this)
             .setTitle("Поддерживаемые клиенты на Android")
             .setMessage(
-                "1. 📱 Sing-box Core (Hiddify, NekoBox, Karing, Throne):\n" +
+                "1. 📱 Hiddify (Sing-box Core):\n" +
                 "Формат: Sing-box JSON.\n" +
                 "Плюсы: Автоматически применяет выбранный список приложений (Direct) прямо из конфига.\n\n" +
                 "2. 🚀 Xray Core (v2rayNG, v2rayTun, Incy, Happ):\n" +
                 "Формат: Прямые vless:// ссылки или Base64 подписка.\n" +
                 "Особенность: v2rayNG НЕ принимает Sing-box JSON! Обход приложений в v2rayNG включается вручную: Настройки ➔ «Раздельное туннелирование».\n\n" +
-                "3. 🐱 Clash / Mihomo Core (Flclash, Clash Meta):\n" +
+                "3. 🐱 FClashX / FlClash (Mihomo Core):\n" +
                 "Формат: Clash YAML.\n" +
                 "Особенность: Импортируется в профили Flclash на телефоне.\n\n" +
                 "❌ AmneziaVPN: Использует закрытый формат AWG, сторонние конфиги не принимает."
