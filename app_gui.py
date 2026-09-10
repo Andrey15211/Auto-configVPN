@@ -246,7 +246,7 @@ QComboBox QAbstractItemView {
 """
 
 
-APP_VERSION = "1.3.2"
+APP_VERSION = "1.3.3"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 
@@ -489,7 +489,7 @@ class UpdateProgressDialog(QDialog):
 
         # Prepare self-update script via PowerShell
         ps_script = os.path.join(tempfile.gettempdir(), "smartvpn_self_update.ps1")
-        ps_code = f"""# SmartVPN Self-Updater
+        ps_code = f"""# SmartVPN Self-Updater with Visible GUI & Clean Process Detach
 $ErrorActionPreference = "Continue"
 $logFile = "$env:TEMP\\smartvpn_update.log"
 "Starting update at $(Get-Date)" | Out-File $logFile -Encoding utf8
@@ -500,9 +500,51 @@ $source = "{temp_exe}"
 "Target: $target" | Out-File $logFile -Append -Encoding utf8
 "Source: $source" | Out-File $logFile -Append -Encoding utf8
 
-Start-Sleep -Milliseconds 1500
+# 1. Show native Windows Forms installation progress window
+$form = $null
+$label = $null
+$bar = $null
+try {{
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    [System.Windows.Forms.Application]::EnableVisualStyles()
 
-$retries = 40
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "Обновление Auto-configVPN"
+    $form.Size = New-Object System.Drawing.Size(430, 165)
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.TopMost = $true
+    $form.BackColor = [System.Drawing.Color]::FromArgb(30, 41, 59)
+
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "Завершение работы предыдущей версии..."
+    $label.ForeColor = [System.Drawing.Color]::White
+    $label.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Regular)
+    $label.Size = New-Object System.Drawing.Size(380, 25)
+    $label.Location = New-Object System.Drawing.Point(20, 20)
+    $form.Controls.Add($label)
+
+    $bar = New-Object System.Windows.Forms.ProgressBar
+    $bar.Size = New-Object System.Drawing.Size(370, 24)
+    $bar.Location = New-Object System.Drawing.Point(20, 55)
+    $bar.Minimum = 0
+    $bar.Maximum = 100
+    $bar.Value = 20
+    $form.Controls.Add($bar)
+
+    $form.Show()
+    $form.Refresh()
+}} catch {{
+    "WinForms UI error: $_" | Out-File $logFile -Append -Encoding utf8
+}}
+
+# 2. Wait for old executable to unlock and release file locks
+Start-Sleep -Milliseconds 1200
+
+$retries = 50
 while ($retries -gt 0) {{
     try {{
         if (Test-Path -LiteralPath $target) {{
@@ -512,9 +554,16 @@ while ($retries -gt 0) {{
         break
     }} catch {{
         "Target still locked ($retries left): $_" | Out-File $logFile -Append -Encoding utf8
-        Start-Sleep -Milliseconds 400
+        Start-Sleep -Milliseconds 300
         $retries--
     }}
+}}
+
+# 3. Move new executable into place
+if ($form -and $label -and $bar) {{
+    $label.Text = "Установка новой версии..."
+    $bar.Value = 70
+    $form.Refresh()
 }}
 
 try {{
@@ -525,12 +574,33 @@ try {{
     Copy-Item -LiteralPath $source -Destination $target -Force -ErrorAction SilentlyContinue
 }}
 
+# 4. Clean PyInstaller environment variables so new process doesn't think it's a child process
+if ($form -and $label -and $bar) {{
+    $label.Text = "Запуск обновлённого приложения..."
+    $bar.Value = 100
+    $form.Refresh()
+    Start-Sleep -Milliseconds 400
+}}
+
+Get-ChildItem env:* | Where-Object {{ $_.Name -like "*_MEI*" -or $_.Name -like "*PYI*" }} | ForEach-Object {{
+    [System.Environment]::SetEnvironmentVariable($_.Name, $null, "Process")
+    Remove-Item "env:$($_.Name)" -Force -ErrorAction SilentlyContinue
+}}
+
+# 5. Launch cleanly via Windows Explorer Shell (clean detachment from old PyInstaller process tree)
 $targetDir = [System.IO.Path]::GetDirectoryName($target)
 try {{
-    Start-Process -FilePath $target -WorkingDirectory $targetDir -ErrorAction Stop
-    "Started $target in $targetDir" | Out-File $logFile -Append -Encoding utf8
+    $shell = New-Object -ComObject Shell.Application
+    $shell.ShellExecute($target, "", $targetDir, "open", 1)
+    "Started $target via Shell.Application" | Out-File $logFile -Append -Encoding utf8
 }} catch {{
-    "Start-Process failed: $_" | Out-File $logFile -Append -Encoding utf8
+    "ShellExecute failed: $_. Falling back to explorer.exe" | Out-File $logFile -Append -Encoding utf8
+    Start-Process -FilePath "explorer.exe" -ArgumentList "`"$target`""
+}}
+
+if ($form) {{
+    $form.Close()
+    $form.Dispose()
 }}
 
 Start-Sleep -Seconds 1
