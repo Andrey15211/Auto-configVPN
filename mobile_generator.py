@@ -35,6 +35,8 @@ def build_vless_uri(node: Dict) -> str:
         params = {}
         if sni:
             params["sni"] = sni
+        if node.get("skip-cert-verify") or node.get("insecure"):
+            params["insecure"] = "1"
         q = f"?{urllib.parse.urlencode(params)}" if params else ""
         return f"hysteria2://{pwd}@{server}:{port}{q}#{name}"
 
@@ -85,16 +87,19 @@ def _build_singbox_outbound(node: Dict, tag: str = "proxy") -> Dict:
     """Construct Sing-box outbound dictionary for vless or hysteria2 with custom tag."""
     p_type = node.get("type", "vless")
     if p_type in ("hysteria2", "hy2"):
+        tls_dict = {
+            "enabled": True,
+            "server_name": node.get("sni", "")
+        }
+        if node.get("skip-cert-verify") or node.get("insecure"):
+            tls_dict["insecure"] = True
         return {
             "type": "hysteria2",
             "tag": tag,
             "server": node.get("server", ""),
             "server_port": int(node.get("port", 443)),
             "password": node.get("password", ""),
-            "tls": {
-                "enabled": True,
-                "server_name": node.get("sni", "")
-            }
+            "tls": tls_dict
         }
 
     # Default VLESS

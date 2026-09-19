@@ -246,7 +246,7 @@ QComboBox QAbstractItemView {
 """
 
 
-APP_VERSION = "1.3.3"
+APP_VERSION = "1.3.4"
 GITHUB_REPO = "Andrey15211/Auto-configVPN"
 
 

@@ -86,6 +86,10 @@ def parse_node_uri(link: str) -> Optional[Dict]:
             return qs.get(k, [def_val])[0]
 
         name = urllib.parse.unquote(u.fragment) if u.fragment else f"Hysteria2 ({u.hostname}:{u.port})"
+        insecure_raw = get_p("insecure", "")
+        skip_cert_raw = get_p("skip-cert-verify", "")
+        is_insecure = (insecure_raw in ("1", "true", "True")) or (skip_cert_raw in ("1", "true", "True"))
+
         node = {
             "name": name,
             "type": "hysteria2",
@@ -93,12 +97,26 @@ def parse_node_uri(link: str) -> Optional[Dict]:
             "port": int(u.port or 443),
             "password": u.username or "",
             "sni": get_p("sni", ""),
+            "skip-cert-verify": is_insecure,
+            "insecure": is_insecure,
             "udp": True,
             "raw_uri": link
         }
         return node
 
     return None
+
+
+def _get_node_dedup_key(node: Dict) -> tuple:
+    """Return unique identity tuple for deduplicating alias URIs (e.g. hysteria2 vs hy2)."""
+    p_type = str(node.get("type", "")).lower()
+    server = str(node.get("server", "")).strip().lower()
+    port = int(node.get("port", 443))
+    if p_type in ("hysteria2", "hy2"):
+        return ("hysteria2", server, port, str(node.get("password", "")))
+    elif p_type == "vless":
+        return ("vless", server, port, str(node.get("uuid", "")).lower())
+    return (p_type, server, port)
 
 
 def fetch_subscription(url: str) -> List[Dict]:
@@ -118,11 +136,17 @@ def fetch_subscription(url: str) -> List[Dict]:
 
     lines = [l.strip() for l in decoded.splitlines() if l.strip()]
     nodes = []
+    seen_keys = set()
     seen_names = set()
 
     for l in lines:
         node = parse_node_uri(l)
         if node:
+            key = _get_node_dedup_key(node)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+
             base_name = node["name"]
             idx = 2
             while node["name"] in seen_names:
@@ -239,10 +263,16 @@ def parse_any_source(link: str) -> List[Dict]:
     # Check if multiple lines
     lines = [l.strip() for l in link.splitlines() if l.strip()]
     nodes = []
+    seen_keys = set()
     seen_names = set()
     for l in lines:
         node = parse_node_uri(l)
         if node:
+            key = _get_node_dedup_key(node)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+
             base_name = node["name"]
             idx = 2
             while node["name"] in seen_names:
@@ -381,6 +411,7 @@ def generate_clash_yaml(nodes_input: Union[Dict, List[Dict]],
                 "port": int(n.get("port", 443)),
                 "password": n.get("password", ""),
                 "sni": n.get("sni", ""),
+                "skip-cert-verify": bool(n.get("skip-cert-verify") or n.get("insecure")),
                 "udp": True
             }
             mihomo_proxies.append(p_dict)
