@@ -90,3 +90,11 @@ pyinstaller --noconfirm SmartVPNWizard.spec
 
 ## 📄 Лицензия
 MIT License. Свободно для использования, модификации и распространения.
+
+---
+
+## 📬 Контакты
+
+**Telegram:** [@andrey15211](https://t.me/andrey15211)  
+**Email:** andrejbadalin8@gmail.com  
+**GitHub:** [Andrey15211](https://github.com/Andrey15211)
