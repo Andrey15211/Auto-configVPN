@@ -33,3 +33,8 @@ backups/
 *.yaml
 !*.github/**/*.yaml
 !*.github/**/*.yml
+
+# Security: Android signing keys
+*.keystore
+*.jks
+key.properties
